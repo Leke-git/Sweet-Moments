@@ -739,8 +739,15 @@ const App: React.FC = () => {
           mimeType: activeItem.inspirationMimeType || 'image/jpeg'
         } : undefined
       });
-      updateActiveItem({ mockupUrl: result });
-    } catch (err) { console.error(err); } 
+      if (result) {
+        updateActiveItem({ mockupUrl: result });
+      } else {
+        alert('Could not generate preview. Please try again.');
+      }
+    } catch (err) { 
+      console.error(err); 
+      alert('AI visualization failed. Please check your connection.');
+    } 
     finally { setAiLoading(false); }
   };
 
@@ -766,9 +773,16 @@ const App: React.FC = () => {
     setSubmittingOrder(true);
     try {
       const payload = { 
-        ...formData, 
-        total_price: calculateTotal(), 
-        user_id: user?.id || null 
+        user_id: user?.id || null,
+        customer_name: formData.customerName,
+        customer_email: formData.customerEmail,
+        customer_phone: formData.customerPhone,
+        items: formData.items,
+        total_price: calculateTotal(),
+        delivery_method: formData.deliveryMethod,
+        delivery_date: formData.deliveryDate,
+        delivery_address: formData.deliveryAddress,
+        status: 'pending'
       };
       const { error } = await supabase.from('orders').insert([payload]);
       if (error) throw error;

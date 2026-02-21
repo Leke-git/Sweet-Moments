@@ -15,7 +15,7 @@ export interface MockupDetails {
 
 export const generateCakeVisualMockup = async (details: MockupDetails) => {
   // Always create a new instance before use to ensure the most current API key is used
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
   try {
     const prompt = `A professional, high-end food photography shot of a ${details.type} cake. 
     Culinary Details: 
@@ -66,7 +66,7 @@ export const generateCakeVisualMockup = async (details: MockupDetails) => {
 };
 
 export const explainCakeTerm = async (term: string, category: string) => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
   try {
     const prompt = `You are a professional artisan baker. Briefly explain what "${term}" is in the context of a cake's "${category}". 
     Keep the explanation under 30 words, elegant, and helpful for someone who isn't a baker. 
