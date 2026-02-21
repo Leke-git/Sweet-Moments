@@ -9,7 +9,7 @@ import {
   ArrowRight, Loader2, Sparkles, ImageIcon,
   Instagram, Facebook, ChevronLeft, ChevronRight,
   ChevronDown, Globe, Star, LogOut, TrendingUp, Inbox, Users, AlertCircle, Info,
-  Trash2, ExternalLink, RefreshCw, Eye
+  Trash2, ExternalLink, RefreshCw, Eye, Sun, Moon
 } from './components/Icons';
 import { 
   SiteConfig, OrderFormData, User, CakeItem, Order, EnquiryData
@@ -615,12 +615,72 @@ const CategorySlideshowCard: React.FC<{ category: any; onOrder: () => void; inde
 };
 
 
+const BakeryLoading: React.FC = () => {
+  return (
+    <div className="fixed inset-0 bg-[#fdf8f4] dark:bg-[#1a130f] flex flex-col items-center justify-center z-[9999] overflow-hidden">
+      <div className="relative w-64 h-64 flex items-center justify-center">
+        {/* Animated Oven/Bakery Illustration */}
+        <div className="absolute inset-0 border-4 border-[#c8614a]/20 rounded-full animate-ping"></div>
+        <div className="absolute inset-4 border-2 border-[#c8614a]/10 rounded-full animate-pulse"></div>
+        
+        <div className="relative z-10 flex flex-col items-center gap-4">
+          <div className="relative">
+            <Sparkles className="w-16 h-16 text-[#c8614a] animate-bounce" />
+            <div className="absolute -top-2 -right-2">
+              <div className="w-4 h-4 bg-[#d4956a] rounded-full animate-ping"></div>
+            </div>
+          </div>
+          <div className="text-center space-y-2">
+            <h1 className="text-4xl md:text-5xl text-[#c8614a] font-serif italic animate-fade-in">Sweet Moments</h1>
+            <div className="flex items-center justify-center gap-3 text-[#9c8878] font-bold uppercase tracking-[0.3em] text-[10px]">
+              <Loader2 className="animate-spin w-4 h-4" />
+              <span>Preparing the bakery</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Floating elements */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-12 animate-float opacity-20">
+          <div className="w-8 h-8 bg-[#c8614a] rounded-lg rotate-12"></div>
+        </div>
+        <div className="absolute bottom-0 left-1/4 translate-y-12 animate-float opacity-20" style={{ animationDelay: '1s' }}>
+          <div className="w-6 h-6 bg-[#d4956a] rounded-full"></div>
+        </div>
+        <div className="absolute top-1/4 right-0 translate-x-12 animate-float opacity-20" style={{ animationDelay: '2s' }}>
+          <div className="w-10 h-10 border-2 border-[#c8614a] rounded-full"></div>
+        </div>
+      </div>
+      
+      <div className="absolute bottom-12 left-0 w-full px-12">
+        <div className="h-1 w-full bg-[#ede5dc] dark:bg-[#3d2b1d] rounded-full overflow-hidden">
+          <div className="h-full bg-[#c8614a] animate-[loading_3s_ease-in-out_infinite]"></div>
+        </div>
+      </div>
+
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes loading {
+          0% { width: 0%; transform: translateX(-100%); }
+          50% { width: 100%; transform: translateX(0%); }
+          100% { width: 0%; transform: translateX(100%); }
+        }
+      `}} />
+    </div>
+  );
+};
+
 const App: React.FC = () => {
   const [config, setConfig] = useState<SiteConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminView, setAdminView] = useState<'dashboard' | 'site'>('dashboard');
+  const [darkMode, setDarkMode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('theme') === 'dark' || 
+        (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    }
+    return false;
+  });
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [orderModalOpen, setOrderModalOpen] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
@@ -640,6 +700,16 @@ const App: React.FC = () => {
   const [showFieldInfo, setShowFieldInfo] = useState<string | null>(null);
 
   const sectionsRef = useRef<Record<string, HTMLElement | null>>({});
+
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    }
+  }, [darkMode]);
 
   useEffect(() => {
     const fetchConfig = async () => {
@@ -878,12 +948,7 @@ const App: React.FC = () => {
     { label: 'Dietary', value: activeItem.dietaryReqs.join(', ') }
   ].filter(item => item.value) : [];
 
-  if (loading) return (
-    <div className="fixed inset-0 bg-[#fdf8f4] flex flex-col items-center justify-center z-[9999]">
-      <h1 className="text-5xl text-[#c8614a] mb-4 font-serif italic">Sweet Moments</h1>
-      <div className="flex items-center gap-2 text-[#9c8878] animate-pulse"><Loader2 className="animate-spin w-4 h-4" /><p>Preparing the bakery...</p></div>
-    </div>
-  );
+  if (loading) return <BakeryLoading />;
 
   return (
     <div className="relative overflow-x-hidden selection:bg-[#c8614a]/20">
@@ -921,10 +986,19 @@ const App: React.FC = () => {
               </>
             )}
           </div>
-          {!isAdmin && (
-             <button onClick={() => { setOrderModalOpen(true); setCurrentStep(1); }} className="hidden xl:block bg-[#c8614a] text-white px-7 py-2.5 rounded-full text-[10px] font-bold uppercase tracking-widest hover:bg-[#b04d38] hover:scale-105 transition-all shadow-lg">Order Now</button>
-          )}
-          <button className="xl:hidden text-[#c8614a] p-2 hover:bg-[#c8614a]/5 rounded-full transition-colors" onClick={() => setMobileMenuOpen(true)} aria-label="Toggle menu"><Menu size={24} /></button>
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => setDarkMode(!darkMode)}
+              className="p-2 rounded-full bg-[#c8614a]/5 border border-[#c8614a]/10 text-[#c8614a] hover:bg-[#c8614a]/10 transition-all"
+              aria-label="Toggle Dark Mode"
+            >
+              {darkMode ? <Sun size={18}/> : <Moon size={18}/>}
+            </button>
+            {!isAdmin && (
+               <button onClick={() => { setOrderModalOpen(true); setCurrentStep(1); }} className="hidden xl:block bg-[#c8614a] text-white px-7 py-2.5 rounded-full text-[10px] font-bold uppercase tracking-widest hover:bg-[#b04d38] hover:scale-105 transition-all shadow-lg">Order Now</button>
+            )}
+            <button className="xl:hidden text-[#c8614a] p-2 hover:bg-[#c8614a]/5 rounded-full transition-colors" onClick={() => setMobileMenuOpen(true)} aria-label="Toggle menu"><Menu size={24} /></button>
+          </div>
         </nav>
       </header>
 
@@ -932,10 +1006,19 @@ const App: React.FC = () => {
         <>
           <div className={`fixed inset-0 z-[60] transition-all duration-500 ${mobileMenuOpen ? 'visible' : 'invisible'}`}>
             <div className={`absolute inset-0 bg-[#2c1a0e]/20 backdrop-blur-sm transition-opacity duration-500 ${mobileMenuOpen ? 'opacity-100' : 'opacity-0'}`} onClick={() => setMobileMenuOpen(false)}></div>
-            <div className={`absolute top-0 right-0 h-full w-[280px] sm:w-[320px] bg-white shadow-2xl transition-transform duration-500 ease-out flex flex-col p-8 ${mobileMenuOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+            <div className={`absolute top-0 right-0 h-full w-[280px] sm:w-[320px] bg-white dark:bg-[#2c1a0e] shadow-2xl transition-transform duration-500 ease-out flex flex-col p-8 ${mobileMenuOpen ? 'translate-x-0' : 'translate-x-full'}`}>
               <div className="flex justify-between items-center mb-12">
                 <span className="text-xl font-serif italic text-[#c8614a]">Menu</span>
-                <button className="text-[#c8614a] p-2 hover:bg-[#c8614a]/5 rounded-full transition-colors" onClick={() => setMobileMenuOpen(false)} aria-label="Close menu"><X size={24} /></button>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => setDarkMode(!darkMode)}
+                    className="p-2 rounded-full bg-[#c8614a]/5 border border-[#c8614a]/10 text-[#c8614a] hover:bg-[#c8614a]/10 transition-all"
+                    aria-label="Toggle Dark Mode"
+                  >
+                    {darkMode ? <Sun size={20}/> : <Moon size={20}/>}
+                  </button>
+                  <button className="text-[#c8614a] p-2 hover:bg-[#c8614a]/5 rounded-full transition-colors" onClick={() => setMobileMenuOpen(false)} aria-label="Close menu"><X size={24} /></button>
+                </div>
               </div>
               <div className="flex flex-col gap-6 mb-12">
                 <NavLink to="home" label="Home" />
@@ -960,9 +1043,9 @@ const App: React.FC = () => {
             </div>
           </div>
 
-          <main className={`transition-all duration-700 ${orderModalOpen || authModalOpen ? 'blur-md scale-[0.98]' : 'blur-0 scale-100'}`}>
+          <main className={`transition-all duration-700 ${orderModalOpen || authModalOpen ? 'blur-md scale-[0.98]' : 'blur-0 scale-100'} bg-[#fdf8f4] dark:bg-[#1a130f]`}>
             <section id="home" ref={el => { sectionsRef.current['home'] = el; }} className="relative min-h-screen flex items-center pt-20 pb-12 md:py-0 overflow-hidden">
-              <div className="absolute inset-0 z-0 bg-[#fdf8f4]">
+              <div className="absolute inset-0 z-0 bg-[#fdf8f4] dark:bg-[#1a130f]">
                 <div className="noise"></div>
               </div>
               <div className="container mx-auto px-6 md:px-12 lg:px-32 xl:px-40 grid md:grid-cols-2 gap-8 md:gap-12 items-center relative z-10">
@@ -981,7 +1064,7 @@ const App: React.FC = () => {
               </div>
             </section>
             
-            <section id="gallery" ref={el => { sectionsRef.current['gallery'] = el; }} className="py-24 md:py-32 bg-[#fdf8f4]">
+            <section id="gallery" ref={el => { sectionsRef.current['gallery'] = el; }} className="py-24 md:py-32 bg-[#fdf8f4] dark:bg-[#1a130f]">
               <div className="container mx-auto px-6 md:px-12 lg:px-32 xl:px-40">
                 <div className="max-w-4xl mx-auto text-center mb-16 md:mb-24">
                   <span className="text-[9px] md:text-[10px] uppercase tracking-[0.3em] md:tracking-[0.4em] text-[#c8614a] font-bold mb-4 block">Lookbook</span>
@@ -1026,7 +1109,7 @@ const App: React.FC = () => {
                </div>
             </section>
 
-            <section id="reviews" ref={el => { sectionsRef.current['reviews'] = el; }} className="py-24 md:py-32 bg-[#fdf8f4] px-6 md:px-12 lg:px-32 xl:px-40">
+            <section id="reviews" ref={el => { sectionsRef.current['reviews'] = el; }} className="py-24 md:py-32 bg-[#fdf8f4] dark:bg-[#1a130f] px-6 md:px-12 lg:px-32 xl:px-40">
               <div className="container mx-auto">
                 <div className="max-w-4xl mx-auto text-center mb-16 md:mb-24">
                   <span className="text-[9px] md:text-[10px] uppercase tracking-[0.3em] md:tracking-[0.4em] text-[#c8614a] font-bold block">Testimonials</span>
@@ -1049,7 +1132,7 @@ const App: React.FC = () => {
               </div>
             </section>
 
-            <section id="about" ref={el => { sectionsRef.current['about'] = el; }} className="py-24 md:py-32 bg-white px-6 md:px-12 lg:px-32 xl:px-40">
+            <section id="about" ref={el => { sectionsRef.current['about'] = el; }} className="py-24 md:py-32 bg-white dark:bg-[#2c1a0e] px-6 md:px-12 lg:px-32 xl:px-40">
               <div className="container mx-auto grid md:grid-cols-2 gap-12 md:gap-24 items-center">
                 <div className="relative group max-w-md mx-auto md:max-w-none">
                   <div className="bg-white aspect-[3/4] rounded-[32px] md:rounded-[48px] overflow-hidden shadow-2xl relative z-10 border border-[#ede5dc]">
@@ -1071,7 +1154,7 @@ const App: React.FC = () => {
               </div>
             </section>
 
-            <section id="contact" ref={el => { sectionsRef.current['contact'] = el; }} className="py-24 md:py-32 bg-[#fdf8f4] px-6 md:px-12 lg:px-32 xl:px-40">
+            <section id="contact" ref={el => { sectionsRef.current['contact'] = el; }} className="py-24 md:py-32 bg-[#fdf8f4] dark:bg-[#1a130f] px-6 md:px-12 lg:px-32 xl:px-40">
               <div className="container mx-auto grid md:grid-cols-2 gap-12 md:gap-24">
                 <div className="space-y-12 md:space-y-16 text-center md:text-left">
                   <h2 className="text-4xl md:text-6xl font-serif italic text-[#2c1a0e]">Get in touch.</h2>
@@ -1095,7 +1178,7 @@ const App: React.FC = () => {
               </div>
             </section>
 
-            <footer className="py-16 md:py-24 bg-white border-t border-[#ede5dc] text-center px-6 md:px-12 lg:px-32 xl:px-40">
+            <footer className="py-16 md:py-24 bg-white dark:bg-[#2c1a0e] border-t border-[#ede5dc] dark:border-[#3d2b1d] text-center px-6 md:px-12 lg:px-32 xl:px-40">
               <div className="container mx-auto space-y-8 md:space-y-12">
                 <a href="#" className="text-4xl md:text-5xl font-serif italic text-[#c8614a] hover:opacity-80 transition-opacity">Sweet Moments</a>
                 <div className="flex justify-center gap-8 text-[#9c8878]">

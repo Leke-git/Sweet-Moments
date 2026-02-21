@@ -5,5 +5,5 @@ export {
   Mail, Phone, MapPin, Clock, ArrowRight, Instagram, 
   Facebook, AlertCircle, Loader2, Sparkles, Image as ImageIcon,
   ChevronLeft, Globe, Star, LogOut, TrendingUp, Inbox, Users, Info,
-  Trash2, ExternalLink, RefreshCw, Eye
+  Trash2, ExternalLink, RefreshCw, Eye, Sun, Moon
 } from 'lucide-react';

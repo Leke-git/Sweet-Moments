@@ -23,10 +23,21 @@
   --border: #ede5dc;
 }
 
+.dark {
+  --bg: #1a130f;
+  --primary: #c8614a;
+  --accent: #d4956a;
+  --dark: #fdf8f4;
+  --muted: #9c8878;
+  --surface: #2c1a0e;
+  --border: #3d2b1d;
+}
+
 body {
   background-color: var(--bg);
   color: var(--dark);
   font-family: var(--font-sans);
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 h1, h2, h3, h4, .font-serif {
@@ -37,6 +48,10 @@ h1, h2, h3, h4, .font-serif {
   background: rgba(255, 255, 255, 0.7);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+}
+
+.dark .glass {
+  background: rgba(26, 19, 15, 0.7);
 }
 
 .noise {
