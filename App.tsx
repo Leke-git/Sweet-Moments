@@ -142,7 +142,7 @@ const AuthModal: React.FC<{ onClose: () => void; onAuthSuccess: (user: User) => 
       const { error: authError } = await supabase.auth.signInWithOtp({
         email,
         options: {
-          shouldCreateUser: mode === 'signup',
+          shouldCreateUser: true, // Allow creation in both modes for frictionless OTP
         }
       });
       if (authError) throw authError;
@@ -164,7 +164,7 @@ const AuthModal: React.FC<{ onClose: () => void; onAuthSuccess: (user: User) => 
       const { data, error: verifyError } = await supabase.auth.verifyOtp({
         email: verificationEmail,
         token: code,
-        type: 'magiclink'
+        type: 'email' // Changed from 'magiclink' to 'email' for 6-digit codes
       });
       if (verifyError) throw verifyError;
       if (data.user) {
