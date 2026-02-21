@@ -1,5 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
+  BarChart, Bar, PieChart, Pie, Cell, Legend
+} from 'recharts';
+import { format, subDays, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
+import { 
   Menu, X, Check, ShoppingCart, Mail, Phone, MapPin, Clock, 
   ArrowRight, Loader2, Sparkles, ImageIcon,
   Instagram, Facebook, ChevronLeft, ChevronRight,
@@ -44,8 +49,8 @@ const INITIAL_FORM_DATA: OrderFormData = {
   deliveryAddress: ''
 };
 
-const AdminDashboard: React.FC<{ user: User }> = ({ user }) => {
-  const [activeTab, setActiveTab] = useState<'orders' | 'enquiries'>('orders');
+const AdminDashboard: React.FC<{ user: User; onToggleView: () => void }> = ({ user, onToggleView }) => {
+  const [activeTab, setActiveTab] = useState<'orders' | 'enquiries' | 'analytics'>('orders');
   const [orders, setOrders] = useState<Order[]>([]);
   const [enquiries, setEnquiries] = useState<EnquiryData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -130,11 +135,70 @@ const AdminDashboard: React.FC<{ user: User }> = ({ user }) => {
     }
   };
 
+  const downloadReport = () => {
+    const headers = ['Order ID', 'Date', 'Customer', 'Email', 'Items', 'Total Price', 'Status'];
+    const rows = orders.map(o => [
+      o.id,
+      new Date(o.created_at).toLocaleDateString(),
+      o.customerName,
+      o.customerEmail,
+      o.items.map(i => `${i.quantity}x ${i.selectedSize} ${i.cakeFlavor}`).join('; '),
+      o.total_price,
+      o.status
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(r => r.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `sweet_moments_report_${format(new Date(), 'yyyy-MM-dd')}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const stats = {
     pendingOrders: orders.filter(o => o.status === 'pending').length,
     totalRevenue: orders.reduce((sum, o) => sum + (o.status !== 'cancelled' ? Number(o.total_price) : 0), 0),
     newEnquiries: enquiries.filter(e => e.status === 'new').length
   };
+
+  // Analytics Data Processing
+  const last7Days = Array.from({ length: 7 }, (_, i) => subDays(startOfDay(new Date()), i)).reverse();
+  const revenueData = last7Days.map(date => {
+    const dayOrders = orders.filter(o => {
+      const oDate = new Date(o.created_at);
+      return o.status !== 'cancelled' && isWithinInterval(oDate, { start: startOfDay(date), end: endOfDay(date) });
+    });
+    return {
+      name: format(date, 'MMM dd'),
+      revenue: dayOrders.reduce((sum, o) => sum + Number(o.total_price), 0),
+      orders: dayOrders.length
+    };
+  });
+
+  const statusData = [
+    { name: 'Pending', value: orders.filter(o => o.status === 'pending').length, color: '#eab308' },
+    { name: 'Confirmed', value: orders.filter(o => o.status === 'confirmed').length, color: '#3b82f6' },
+    { name: 'Baking', value: orders.filter(o => o.status === 'baking').length, color: '#a855f7' },
+    { name: 'Delivered', value: orders.filter(o => o.status === 'delivered').length, color: '#22c55e' },
+    { name: 'Cancelled', value: orders.filter(o => o.status === 'cancelled').length, color: '#ef4444' }
+  ].filter(d => d.value > 0);
+
+  const cakeTypeData = orders.reduce((acc: any[], order) => {
+    order.items.forEach(item => {
+      const existing = acc.find(a => a.name === item.selectedCakeType);
+      if (existing) existing.value += item.quantity;
+      else acc.push({ name: item.selectedCakeType, value: item.quantity });
+    });
+    return acc;
+  }, []).sort((a, b) => b.value - a.value).slice(0, 5);
 
   return (
     <div className="min-h-screen bg-[#1a130f] text-white p-6 md:p-12 lg:p-16 xl:px-32 pt-28 md:pt-32 animate-fade-in">
@@ -149,30 +213,39 @@ const AdminDashboard: React.FC<{ user: User }> = ({ user }) => {
               </button>
             </div>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 w-full md:w-auto">
-            <div className="bg-[#2c1a0e] p-4 md:p-5 rounded-2xl border border-white/5 flex items-center gap-4">
-              <div className="w-10 h-10 bg-[#c8614a]/20 rounded-xl flex items-center justify-center text-[#c8614a]"><TrendingUp size={18}/></div>
-              <div>
-                <p className="text-[8px] text-[#9c8878] uppercase font-black tracking-wider">Revenue</p>
-                <p className="text-lg font-serif italic">${stats.totalRevenue.toLocaleString()}</p>
-              </div>
-            </div>
-            <div className="bg-[#2c1a0e] p-4 md:p-5 rounded-2xl border border-white/5 flex items-center gap-4">
-              <div className="w-10 h-10 bg-[#c8614a]/20 rounded-xl flex items-center justify-center text-[#c8614a]"><ShoppingCart size={18}/></div>
-              <div>
-                <p className="text-[8px] text-[#9c8878] uppercase font-black tracking-wider">Pending</p>
-                <p className="text-lg font-serif italic">{stats.pendingOrders}</p>
-              </div>
-            </div>
-            <div className="hidden md:flex bg-[#2c1a0e] p-4 md:p-5 rounded-2xl border border-white/5 items-center gap-4">
-              <div className="w-10 h-10 bg-[#c8614a]/20 rounded-xl flex items-center justify-center text-[#c8614a]"><Inbox size={18}/></div>
-              <div>
-                <p className="text-[8px] text-[#9c8878] uppercase font-black tracking-wider">Enquiries</p>
-                <p className="text-lg font-serif italic">{stats.newEnquiries}</p>
-              </div>
-            </div>
+          <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto items-center">
+            <button onClick={onToggleView} className="w-full md:w-auto px-6 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all flex items-center justify-center gap-2">
+              <Eye size={14}/> View Public Site
+            </button>
+            <button onClick={downloadReport} className="w-full md:w-auto px-6 py-3 bg-[#c8614a] hover:bg-[#b04d38] rounded-full text-[10px] font-bold uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg">
+              <ExternalLink size={14}/> Export Report
+            </button>
           </div>
         </header>
+
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <div className="bg-[#2c1a0e] p-4 md:p-6 rounded-2xl border border-white/5 flex items-center gap-4">
+            <div className="w-10 h-10 bg-[#c8614a]/20 rounded-xl flex items-center justify-center text-[#c8614a]"><TrendingUp size={18}/></div>
+            <div>
+              <p className="text-[8px] text-[#9c8878] uppercase font-black tracking-wider">Total Revenue</p>
+              <p className="text-lg md:text-2xl font-serif italic">${stats.totalRevenue.toLocaleString()}</p>
+            </div>
+          </div>
+          <div className="bg-[#2c1a0e] p-4 md:p-6 rounded-2xl border border-white/5 flex items-center gap-4">
+            <div className="w-10 h-10 bg-[#c8614a]/20 rounded-xl flex items-center justify-center text-[#c8614a]"><ShoppingCart size={18}/></div>
+            <div>
+              <p className="text-[8px] text-[#9c8878] uppercase font-black tracking-wider">Pending Orders</p>
+              <p className="text-lg md:text-2xl font-serif italic">{stats.pendingOrders}</p>
+            </div>
+          </div>
+          <div className="hidden md:flex bg-[#2c1a0e] p-4 md:p-6 rounded-2xl border border-white/5 items-center gap-4">
+            <div className="w-10 h-10 bg-[#c8614a]/20 rounded-xl flex items-center justify-center text-[#c8614a]"><Inbox size={18}/></div>
+            <div>
+              <p className="text-[8px] text-[#9c8878] uppercase font-black tracking-wider">New Enquiries</p>
+              <p className="text-lg md:text-2xl font-serif italic">{stats.newEnquiries}</p>
+            </div>
+          </div>
+        </div>
 
         <div className="flex border-b border-white/5 gap-8">
           <button 
@@ -188,6 +261,13 @@ const AdminDashboard: React.FC<{ user: User }> = ({ user }) => {
           >
             Enquiries
             {activeTab === 'enquiries' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[#c8614a]" />}
+          </button>
+          <button 
+            onClick={() => setActiveTab('analytics')}
+            className={`pb-4 text-xs md:text-sm uppercase tracking-widest font-bold transition-all relative ${activeTab === 'analytics' ? 'text-[#c8614a]' : 'text-[#9c8878] hover:text-white'}`}
+          >
+            Analytics
+            {activeTab === 'analytics' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[#c8614a]" />}
           </button>
         </div>
 
@@ -266,7 +346,7 @@ const AdminDashboard: React.FC<{ user: User }> = ({ user }) => {
                   </table>
                 </div>
               </div>
-            ) : (
+            ) : activeTab === 'enquiries' ? (
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {enquiries.length === 0 ? (
                   <div className="col-span-full py-20 text-center text-[#9c8878] italic font-serif text-xl">No enquiries received.</div>
@@ -305,6 +385,70 @@ const AdminDashboard: React.FC<{ user: User }> = ({ user }) => {
                     </div>
                   </div>
                 ))}
+              </div>
+            ) : (
+              <div className="space-y-8">
+                <div className="grid lg:grid-cols-2 gap-8">
+                  <div className="bg-[#2c1a0e] p-8 rounded-[32px] border border-white/5 space-y-6">
+                    <h3 className="text-xl font-serif italic">Revenue Trend (Last 7 Days)</h3>
+                    <div className="h-[300px] w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={revenueData}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
+                          <XAxis dataKey="name" stroke="#9c8878" fontSize={10} tickLine={false} axisLine={false} />
+                          <YAxis stroke="#9c8878" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => `$${v}`} />
+                          <Tooltip 
+                            contentStyle={{ backgroundColor: '#2c1a0e', border: '1px solid #ffffff10', borderRadius: '12px' }}
+                            itemStyle={{ color: '#c8614a', fontSize: '12px' }}
+                          />
+                          <Line type="monotone" dataKey="revenue" stroke="#c8614a" strokeWidth={3} dot={{ fill: '#c8614a', r: 4 }} activeDot={{ r: 6 }} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                  <div className="bg-[#2c1a0e] p-8 rounded-[32px] border border-white/5 space-y-6">
+                    <h3 className="text-xl font-serif italic">Order Status Distribution</h3>
+                    <div className="h-[300px] w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={statusData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={60}
+                            outerRadius={80}
+                            paddingAngle={5}
+                            dataKey="value"
+                          >
+                            {statusData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.color} />
+                            ))}
+                          </Pie>
+                          <Tooltip 
+                            contentStyle={{ backgroundColor: '#2c1a0e', border: '1px solid #ffffff10', borderRadius: '12px' }}
+                          />
+                          <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-[#2c1a0e] p-8 rounded-[32px] border border-white/5 space-y-6">
+                  <h3 className="text-xl font-serif italic">Popular Cake Types</h3>
+                  <div className="h-[300px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={cakeTypeData} layout="vertical">
+                        <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" horizontal={false} />
+                        <XAxis type="number" stroke="#9c8878" fontSize={10} tickLine={false} axisLine={false} />
+                        <YAxis dataKey="name" type="category" stroke="#9c8878" fontSize={10} tickLine={false} axisLine={false} width={100} />
+                        <Tooltip 
+                          contentStyle={{ backgroundColor: '#2c1a0e', border: '1px solid #ffffff10', borderRadius: '12px' }}
+                        />
+                        <Bar dataKey="value" fill="#c8614a" radius={[0, 4, 4, 0]} barSize={20} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -399,7 +543,7 @@ const AuthModal: React.FC<{ onClose: () => void; onAuthSuccess: (user: User) => 
             {mode === 'login' ? 'Welcome Back' : mode === 'signup' ? 'Create Profile' : 'Identity Check'}
           </h2>
           <p className="text-xs md:text-sm text-[#9c8878] font-light">
-            {mode === 'verify' ? `A magic link was sent to ${verificationEmail}` : 'Premium artisan bakes await.'}
+            {mode === 'verify' ? `An 8-digit code was sent to ${verificationEmail}` : 'Premium artisan bakes await.'}
           </p>
         </div>
         {error && <div className="bg-red-50 text-red-500 p-4 rounded-xl mb-6 text-xs md:text-sm flex items-center gap-3"><AlertCircle size={18}/> {error}</div>}
@@ -476,6 +620,7 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [adminView, setAdminView] = useState<'dashboard' | 'site'>('dashboard');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [orderModalOpen, setOrderModalOpen] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
@@ -650,6 +795,7 @@ const App: React.FC = () => {
   const handleAuthSuccess = (authenticatedUser: User) => {
     setUser(authenticatedUser);
     setIsAdmin(authenticatedUser.role === 'admin');
+    setAdminView(authenticatedUser.role === 'admin' ? 'dashboard' : 'site');
     setAuthModalOpen(false);
   };
 
@@ -723,13 +869,19 @@ const App: React.FC = () => {
 
   return (
     <div className="relative overflow-x-hidden selection:bg-[#c8614a]/20">
-      <header className={`fixed top-0 left-0 w-full z-50 transition-all duration-500 ${scrolled || isAdmin ? 'glass border-b border-[#ede5dc] py-3 md:py-4' : 'py-6 md:py-8'}`}>
+      <header className={`fixed top-0 left-0 w-full z-50 transition-all duration-500 ${scrolled || (isAdmin && adminView === 'dashboard') ? 'glass border-b border-[#ede5dc] py-3 md:py-4' : 'py-6 md:py-8'}`}>
         <nav className="container mx-auto px-6 md:px-12 lg:px-32 xl:px-40 flex justify-between items-center">
-          <a href="#" className="text-2xl md:text-3xl font-serif italic text-[#c8614a] hover:opacity-80 transition-opacity">Sweet Moments</a>
+          <a href="#" onClick={(e) => { e.preventDefault(); setAdminView('site'); setActiveSection('home'); }} className="text-2xl md:text-3xl font-serif italic text-[#c8614a] hover:opacity-80 transition-opacity">Sweet Moments</a>
           <div className="hidden xl:flex gap-8 items-center">
             {isAdmin ? (
                <div className="flex gap-6 items-center">
-                  <span className="text-[9px] uppercase tracking-[0.2em] font-black text-[#c8614a] bg-[#c8614a]/10 px-3 py-1.5 rounded-full">Admin Portal</span>
+                  <button 
+                    onClick={() => setAdminView(adminView === 'dashboard' ? 'site' : 'dashboard')}
+                    className="text-[9px] uppercase tracking-[0.2em] font-black text-[#c8614a] bg-[#c8614a]/10 px-4 py-2 rounded-full hover:bg-[#c8614a]/20 transition-all flex items-center gap-2"
+                  >
+                    {adminView === 'dashboard' ? <Eye size={12}/> : <TrendingUp size={12}/>}
+                    {adminView === 'dashboard' ? 'View Site' : 'Admin Portal'}
+                  </button>
                   <button onClick={logout} className="text-[10px] uppercase tracking-widest text-[#9c8878] hover:text-[#c8614a] flex items-center gap-2 transition-colors"><LogOut size={14}/> Sign Out</button>
                </div>
             ) : (
@@ -758,7 +910,7 @@ const App: React.FC = () => {
         </nav>
       </header>
 
-      {isAdmin ? <AdminDashboard user={user!} /> : (
+      {isAdmin && adminView === 'dashboard' ? <AdminDashboard user={user!} onToggleView={() => setAdminView('site')} /> : (
         <>
           <div className={`fixed inset-0 z-[60] transition-all duration-500 ${mobileMenuOpen ? 'visible' : 'invisible'}`}>
             <div className={`absolute inset-0 bg-[#2c1a0e]/20 backdrop-blur-sm transition-opacity duration-500 ${mobileMenuOpen ? 'opacity-100' : 'opacity-0'}`} onClick={() => setMobileMenuOpen(false)}></div>
