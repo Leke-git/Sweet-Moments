@@ -789,6 +789,10 @@ const App: React.FC = () => {
       const { error } = await supabase.from('enquiries').insert([payload]);
       if (error) throw error;
       setEnquirySuccess(true);
+      e.currentTarget.reset();
+      setTimeout(() => {
+        setEnquirySuccess(false);
+      }, 3000);
     } catch (err) { alert('Error sending enquiry.'); }
   };
 
