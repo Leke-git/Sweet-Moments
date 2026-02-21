@@ -1,6 +1,6 @@
 import { SiteConfig } from './types';
 
-export const ADMIN_EMAILS = ['bn.gbemileke@gmail.com', 'hello.think2build@gmail.com'];
+export const ADMIN_EMAILS = ['bn.gbemileke@gmail.com', 'lekingsononpoint@gmail.com'];
 
 export const COLORS = {
   bg: '#fdf8f4',
