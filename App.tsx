@@ -223,7 +223,7 @@ const AuthModal: React.FC<{ onClose: () => void; onAuthSuccess: (user: User) => 
 };
 
 
-const CategorySlideshowCard: React.FC<{ category: any; onOrder: () => void }> = ({ category, onOrder }) => {
+const CategorySlideshowCard: React.FC<{ category: any; onOrder: () => void; index: number }> = ({ category, onOrder, index }) => {
   const [currentIdx, setCurrentIdx] = useState(0);
 
   useEffect(() => {
@@ -234,8 +234,11 @@ const CategorySlideshowCard: React.FC<{ category: any; onOrder: () => void }> = 
   }, [category.images.length]);
 
   return (
-    <div className="bg-white rounded-[32px] md:rounded-[40px] overflow-hidden border border-[#ede5dc] group hover:shadow-2xl transition-all duration-700 h-full flex flex-col">
-      <div className="relative h-64 md:h-80 overflow-hidden shrink-0">
+    <div 
+      className="sticky bg-white rounded-[32px] md:rounded-[48px] overflow-hidden border border-[#ede5dc] group hover:shadow-2xl transition-all duration-700 flex flex-col md:flex-row"
+      style={{ top: `${80 + index * 40}px`, marginBottom: '100px' }}
+    >
+      <div className="relative h-64 md:h-auto md:w-1/2 overflow-hidden shrink-0">
         {category.images.map((img: string, i: number) => (
           <img 
             key={i}
@@ -246,14 +249,14 @@ const CategorySlideshowCard: React.FC<{ category: any; onOrder: () => void }> = 
         ))}
         <div className="absolute inset-0 bg-black/5 group-hover:bg-transparent transition-colors duration-500" />
       </div>
-      <div className="p-6 md:p-10 space-y-4 flex-grow flex flex-col justify-between">
-        <div className="space-y-3 md:space-y-4">
+      <div className="p-8 md:p-16 lg:p-24 space-y-6 md:w-1/2 flex flex-col justify-center">
+        <div className="space-y-4 md:space-y-6">
           <span className="text-[9px] md:text-[10px] uppercase tracking-[0.3em] md:tracking-[0.4em] text-[#c8614a] font-bold block">{category.category}</span>
-          <h3 className="text-2xl md:text-3xl font-serif italic text-[#2c1a0e]">{category.title}</h3>
-          <p className="text-xs md:text-sm text-[#9c8878] leading-relaxed line-clamp-3 font-light">{category.description}</p>
+          <h3 className="text-3xl md:text-5xl lg:text-6xl font-serif italic text-[#2c1a0e]">{category.title}</h3>
+          <p className="text-sm md:text-lg text-[#9c8878] leading-relaxed font-light">{category.description}</p>
         </div>
-        <button onClick={onOrder} className="pt-4 md:pt-6 flex items-center gap-3 text-[#c8614a] font-bold uppercase tracking-widest text-[9px] md:text-[10px] border-b border-transparent hover:border-[#c8614a] transition-all pb-2 group/btn w-fit">
-          Start Customizing <ArrowRight size={14} className="group-hover/btn:translate-x-1 transition-transform" />
+        <button onClick={onOrder} className="pt-6 md:pt-10 flex items-center gap-3 text-[#c8614a] font-bold uppercase tracking-widest text-[10px] md:text-xs border-b border-transparent hover:border-[#c8614a] transition-all pb-2 group/btn w-fit">
+          Start Customizing <ArrowRight size={16} className="group-hover/btn:translate-x-1 transition-transform" />
         </button>
       </div>
     </div>
@@ -584,9 +587,9 @@ const App: React.FC = () => {
                   <h2 className="text-4xl md:text-6xl text-[#2c1a0e] font-serif italic mb-6">Our Works</h2>
                   <p className="text-base md:text-lg text-[#9c8878] font-light max-w-2xl mx-auto">Explore our curated collections, where each category is a testament to our dedication to aesthetic and flavor.</p>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-10">
-                  {GALLERY_CATEGORIES.map(cat => (
-                    <CategorySlideshowCard key={cat.id} category={cat} onOrder={() => { setOrderModalOpen(true); setCurrentStep(1); }} />
+                <div className="flex flex-col gap-12">
+                  {GALLERY_CATEGORIES.map((cat, idx) => (
+                    <CategorySlideshowCard key={cat.id} category={cat} index={idx} onOrder={() => { setOrderModalOpen(true); setCurrentStep(1); }} />
                   ))}
                 </div>
               </div>
@@ -713,18 +716,18 @@ const App: React.FC = () => {
           <div className="relative w-full max-w-4xl bg-white sm:rounded-[48px] shadow-2xl border border-[#ede5dc] flex flex-col h-full sm:max-h-[92vh] overflow-hidden animate-scale-in">
             <div className="absolute top-0 right-0 z-[110]"><button onClick={() => setOrderModalOpen(false)} className="w-12 h-12 md:w-16 md:h-16 close-notch flex items-center justify-center text-[#c8614a]" aria-label="Close modal"><X size={24} className="sm:translate-x-1 sm:-translate-y-1" /></button></div>
             <div className="absolute top-0 left-0 w-full h-1 md:h-1.5 bg-[#ede5dc] z-[30]"><div className="h-full bg-[#c8614a] transition-all duration-1000 ease-in-out" style={{ width: `${(currentStep / TOTAL_STEPS) * 100}%` }}></div></div>
-            <div className="p-6 md:p-10 pb-2 md:pb-4 flex items-center justify-between shrink-0 bg-white z-20 mt-1 md:mt-1.5"><div className="space-y-0.5 md:space-y-1"><h2 className="text-2xl md:text-4xl font-serif italic text-[#2c1a0e] leading-tight">{stepInfo.title}</h2><p className="text-[10px] md:text-sm text-[#9c8878] font-light max-w-md">{stepInfo.subtext}</p></div></div>
-            <div className="flex-grow overflow-y-auto p-6 md:p-16 no-scrollbar bg-white">
+            <div className="p-4 md:p-8 pb-2 md:pb-4 flex items-center justify-between shrink-0 bg-white z-20 mt-1 md:mt-1.5"><div className="space-y-0.5 md:space-y-1"><h2 className="text-xl md:text-3xl font-serif italic text-[#2c1a0e] leading-tight">{stepInfo.title}</h2><p className="text-[9px] md:text-xs text-[#9c8878] font-light max-w-md">{stepInfo.subtext}</p></div></div>
+            <div className="flex-grow overflow-y-auto p-4 md:p-12 no-scrollbar bg-white">
                <form onSubmit={handleSubmitOrder} className="min-h-full flex flex-col">
                   <div key={currentStep} className="step-reveal min-h-full">
                     {currentStep === 1 && (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 animate-fade-in-up">
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 animate-fade-in-up">
                         {config?.cake_types.map(cake => (
-                          <div key={cake.id} onClick={() => handleSelection({ selectedCakeType: cake.id })} className={`relative p-6 md:p-8 rounded-[24px] md:rounded-[32px] border-2 cursor-pointer transition-all ${formData.selectedCakeType === cake.id ? 'border-[#c8614a] bg-[#c8614a]/5' : 'border-[#ede5dc] hover:border-[#d4956a]'}`}>
-                            <div className="text-4xl md:text-5xl mb-3 md:mb-4 text-center">{cake.emoji}</div>
-                            <h4 className="text-[10px] md:text-xs font-bold text-center uppercase tracking-widest">{cake.name}</h4>
+                          <div key={cake.id} onClick={() => handleSelection({ selectedCakeType: cake.id })} className={`relative p-4 md:p-8 rounded-[24px] md:rounded-[32px] border-2 cursor-pointer transition-all ${formData.selectedCakeType === cake.id ? 'border-[#c8614a] bg-[#c8614a]/5' : 'border-[#ede5dc] hover:border-[#d4956a]'}`}>
+                            <div className="text-3xl md:text-5xl mb-2 md:mb-4 text-center">{cake.emoji}</div>
+                            <h4 className="text-[9px] md:text-xs font-bold text-center uppercase tracking-widest">{cake.name}</h4>
                             <p className="text-[8px] md:text-[10px] text-[#9c8878] text-center mt-1 md:mt-2 font-black">FROM ${cake.base_price}</p>
-                            {formData.selectedCakeType === cake.id && <div className="absolute top-3 right-3 md:top-4 md:right-4 bg-[#c8614a] text-white rounded-full p-1"><Check size={10}/></div>}
+                            {formData.selectedCakeType === cake.id && <div className="absolute top-2 right-2 md:top-4 md:right-4 bg-[#c8614a] text-white rounded-full p-1"><Check size={8}/></div>}
                           </div>
                         ))}
                       </div>
@@ -742,30 +745,39 @@ const App: React.FC = () => {
                     )}
 
                     {currentStep === 3 && (
-                      <div className="max-w-2xl mx-auto space-y-8 md:space-y-12 animate-fade-in-up">
-                        <div className="space-y-3 md:space-y-4">
+                      <div className="max-w-md mx-auto space-y-6 md:space-y-8 animate-fade-in-up">
+                        <div className="space-y-2 md:space-y-3">
                           <label className="text-[9px] md:text-[10px] font-black uppercase tracking-[0.2em] md:tracking-[0.3em] text-[#c8614a]">01. The Sponge</label>
-                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                            {config?.cake_flavours.map(f => (
-                              <button key={f} type="button" onClick={() => updateFormData({ cakeFlavor: f })} className={`p-3 md:p-4 rounded-xl md:rounded-[16px] border-2 text-[9px] md:text-[10px] font-bold uppercase tracking-widest transition-all ${formData.cakeFlavor === f ? 'border-[#c8614a] bg-[#c8614a]/5 text-[#c8614a]' : 'border-[#ede5dc] text-[#9c8878] hover:border-[#d4956a]'}`}>{f}</button>
-                            ))}
-                          </div>
+                          <select 
+                            value={formData.cakeFlavor} 
+                            onChange={(e) => updateFormData({ cakeFlavor: e.target.value })}
+                            className="w-full bg-[#fdf8f4] border border-[#ede5dc] rounded-xl md:rounded-2xl p-4 md:p-5 outline-none text-xs md:text-sm appearance-none cursor-pointer focus:border-[#c8614a]"
+                          >
+                            <option value="">Select Flavor</option>
+                            {config?.cake_flavours.map(f => <option key={f} value={f}>{f}</option>)}
+                          </select>
                         </div>
-                        <div className="space-y-3 md:space-y-4">
+                        <div className="space-y-2 md:space-y-3">
                           <label className="text-[9px] md:text-[10px] font-black uppercase tracking-[0.2em] md:tracking-[0.3em] text-[#c8614a]">02. Internal Filling</label>
-                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                            {config?.fillings.map(f => (
-                              <button key={f} type="button" onClick={() => updateFormData({ filling: f })} className={`p-3 md:p-4 rounded-xl md:rounded-[16px] border-2 text-[9px] md:text-[10px] font-bold uppercase tracking-widest transition-all ${formData.filling === f ? 'border-[#c8614a] bg-[#c8614a]/5 text-[#c8614a]' : 'border-[#ede5dc] text-[#9c8878] hover:border-[#d4956a]'}`}>{f}</button>
-                            ))}
-                          </div>
+                          <select 
+                            value={formData.filling} 
+                            onChange={(e) => updateFormData({ filling: e.target.value })}
+                            className="w-full bg-[#fdf8f4] border border-[#ede5dc] rounded-xl md:rounded-2xl p-4 md:p-5 outline-none text-xs md:text-sm appearance-none cursor-pointer focus:border-[#c8614a]"
+                          >
+                            <option value="">Select Filling</option>
+                            {config?.fillings.map(f => <option key={f} value={f}>{f}</option>)}
+                          </select>
                         </div>
-                        <div className="space-y-3 md:space-y-4">
+                        <div className="space-y-2 md:space-y-3">
                           <label className="text-[9px] md:text-[10px] font-black uppercase tracking-[0.2em] md:tracking-[0.3em] text-[#c8614a]">03. Final Finish</label>
-                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                            {config?.frosting_types.map(f => (
-                              <button key={f} type="button" onClick={() => updateFormData({ frosting: f })} className={`p-3 md:p-4 rounded-xl md:rounded-[16px] border-2 text-[9px] md:text-[10px] font-bold uppercase tracking-widest transition-all ${formData.frosting === f ? 'border-[#c8614a] bg-[#c8614a]/5 text-[#c8614a]' : 'border-[#ede5dc] text-[#9c8878] hover:border-[#d4956a]'}`}>{f}</button>
-                            ))}
-                          </div>
+                          <select 
+                            value={formData.frosting} 
+                            onChange={(e) => updateFormData({ frosting: e.target.value })}
+                            className="w-full bg-[#fdf8f4] border border-[#ede5dc] rounded-xl md:rounded-2xl p-4 md:p-5 outline-none text-xs md:text-sm appearance-none cursor-pointer focus:border-[#c8614a]"
+                          >
+                            <option value="">Select Frosting</option>
+                            {config?.frosting_types.map(f => <option key={f} value={f}>{f}</option>)}
+                          </select>
                         </div>
                       </div>
                     )}
@@ -846,50 +858,58 @@ const App: React.FC = () => {
                     )}
 
                     {currentStep === 8 && !orderSuccess && (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-10 items-start animate-fade-in-up">
-                        <div className="bg-[#fdf8f4] p-6 md:p-10 rounded-[32px] md:rounded-[48px] border border-[#ede5dc] space-y-6 md:space-y-8">
-                           <h4 className="font-serif italic text-xl md:text-2xl border-b border-[#ede5dc] pb-3 md:pb-4 text-[#2c1a0e]">Order Specifications</h4>
-                           <div className="space-y-4 md:space-y-6 text-xs md:text-sm">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 items-start animate-fade-in-up">
+                        <div className="bg-[#fdf8f4] p-4 md:p-8 rounded-[24px] md:rounded-[32px] border border-[#ede5dc] space-y-4 md:space-y-6">
+                           <h4 className="font-serif italic text-lg md:text-xl border-b border-[#ede5dc] pb-2 md:pb-3 text-[#2c1a0e]">Blueprint</h4>
+                           <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-[10px] md:text-xs">
                               {summaryItems.map(item => (
                                 <div key={item.label} className="summary-item">
-                                  <span className="text-[7px] md:text-[8px] uppercase font-black text-[#9c8878] tracking-widest">{item.label}</span>
-                                  <p className="font-bold text-[#c8614a]">{item.value}</p>
+                                  <span className="text-[7px] md:text-[8px] uppercase font-black text-[#9c8878] tracking-widest block">{item.label}</span>
+                                  <p className="font-bold text-[#c8614a] truncate">{item.value}</p>
                                 </div>
                               ))}
-                              <div className="pt-4 md:pt-6 border-t border-[#ede5dc] flex justify-between items-center"><span className="font-serif text-2xl md:text-3xl italic text-[#2c1a0e]">Grand Total</span><span className="text-3xl md:text-4xl font-bold text-[#c8614a]">${calculateTotal()}</span></div>
+                           </div>
+                           <div className="pt-3 md:pt-4 border-t border-[#ede5dc] flex justify-between items-center">
+                             <span className="font-serif text-xl md:text-2xl italic text-[#2c1a0e]">Total</span>
+                             <span className="text-2xl md:text-3xl font-bold text-[#c8614a]">${calculateTotal()}</span>
                            </div>
                         </div>
-                        <div className="space-y-6 md:space-y-8">
-                           <div className="bg-[#fdf8f4] aspect-square rounded-[32px] md:rounded-[48px] border-2 border-dashed border-[#d4956a] flex flex-col items-center justify-center p-4 md:p-6 relative overflow-hidden shadow-inner">
-                              {aiLoading ? <div className="text-center animate-pulse"><Loader2 className="animate-spin text-[#c8614a] w-10 h-10 md:w-12 md:h-12 mx-auto" /><p className="text-[9px] md:text-[10px] text-[#9c8878] mt-3 md:mt-4 font-bold uppercase tracking-widest">Painting your dream...</p></div>
-                                : mockupUrl ? <img src={mockupUrl} className="w-full h-full object-cover rounded-[24px] md:rounded-[32px] shadow-xl" alt="Cake Mockup" />
-                                : <div className="text-center space-y-3 md:space-y-4">
-                                    <Sparkles className="text-[#c8614a] w-8 h-8 md:w-10 md:h-10 mx-auto" />
-                                    <button type="button" onClick={handleVisualize} className="bg-[#c8614a] text-white px-8 md:px-10 py-3 md:py-4 rounded-full text-[10px] md:text-xs font-bold uppercase tracking-widest shadow-lg hover:bg-[#b04d38] transition-all">Generate Visual</button>
+                        <div className="space-y-4 md:space-y-6">
+                           <div className="bg-[#fdf8f4] aspect-video md:aspect-square rounded-[24px] md:rounded-[32px] border-2 border-dashed border-[#d4956a] flex flex-col items-center justify-center p-4 relative overflow-hidden shadow-inner">
+                              {aiLoading ? <div className="text-center animate-pulse"><Loader2 className="animate-spin text-[#c8614a] w-8 h-8 mx-auto" /><p className="text-[8px] md:text-[9px] text-[#9c8878] mt-2 font-bold uppercase tracking-widest">Painting...</p></div>
+                                : mockupUrl ? <img src={mockupUrl} className="w-full h-full object-cover rounded-[16px] md:rounded-[24px] shadow-xl" alt="Cake Mockup" />
+                                : <div className="text-center space-y-2">
+                                    <Sparkles className="text-[#c8614a] w-6 h-6 mx-auto" />
+                                    <button type="button" onClick={handleVisualize} className="bg-[#c8614a] text-white px-6 py-2 rounded-full text-[9px] font-bold uppercase tracking-widest shadow-lg hover:bg-[#b04d38] transition-all">Visualise</button>
                                   </div>}
                            </div>
-                           <button type="submit" disabled={submittingOrder} className="w-full bg-[#c8614a] text-white py-5 md:py-6 rounded-full font-bold uppercase tracking-widest text-[10px] md:text-xs shadow-2xl flex items-center justify-center gap-3 hover:bg-[#b04d38] hover:scale-[1.02] transition-all disabled:opacity-50">
-                              {submittingOrder ? <Loader2 className="animate-spin" /> : <ShoppingCart size={18} />} Confirm My Order
+                           <button type="submit" disabled={submittingOrder} className="w-full bg-[#c8614a] text-white py-4 rounded-full font-bold uppercase tracking-widest text-[10px] shadow-xl flex items-center justify-center gap-2 hover:bg-[#b04d38] transition-all disabled:opacity-50">
+                              {submittingOrder ? <Loader2 className="animate-spin" /> : <ShoppingCart size={16} />} Confirm Order
                            </button>
                         </div>
                       </div>
                     )}
                   </div>
                   {!orderSuccess && (
-                    <div className="mt-auto pt-10 flex gap-6">
+                    <div className="mt-auto pt-4 md:pt-6 flex gap-4 md:gap-6">
                       {currentStep > 1 && (
-                        <button type="button" onClick={() => setCurrentStep(prev => prev - 1)} className="flex-1 border-2 border-[#ede5dc] text-[#9c8878] py-5 rounded-full font-bold uppercase text-[10px] tracking-widest flex items-center justify-center gap-2 hover:border-[#c8614a] hover:text-[#c8614a] transition-all">
-                          <ChevronLeft size={16} /> Back
+                        <button type="button" onClick={() => setCurrentStep(prev => prev - 1)} className="flex-1 border-2 border-[#ede5dc] text-[#9c8878] py-3 md:py-5 rounded-full font-bold uppercase text-[9px] md:text-[10px] tracking-widest flex items-center justify-center gap-2 hover:border-[#c8614a] hover:text-[#c8614a] transition-all">
+                          <ChevronLeft size={14} /> Back
                         </button>
                       )}
                       {currentStep < 8 && (
-                        <button type="button" onClick={() => setCurrentStep(prev => prev + 1)} disabled={
-                          (currentStep === 1 && !formData.selectedCakeType) ||
-                          (currentStep === 2 && !formData.selectedSize) ||
-                          (currentStep === 6 && (!formData.customerName || !formData.customerEmail || !formData.customerPhone)) ||
-                          (currentStep === 7 && (!formData.deliveryMethod || !formData.deliveryDate))
-                        } className="flex-[2] bg-[#c8614a] text-white py-5 rounded-full font-bold uppercase text-[10px] tracking-[0.2em] shadow-2xl flex items-center justify-center gap-4 transition-all hover:scale-[1.02] disabled:opacity-50">
-                          Continue <ArrowRight size={16} />
+                        <button 
+                          type="button" 
+                          onClick={() => setCurrentStep(prev => prev + 1)} 
+                          disabled={
+                            (currentStep === 1 && !formData.selectedCakeType) ||
+                            (currentStep === 2 && !formData.selectedSize) ||
+                            (currentStep === 6 && (!formData.customerName || !formData.customerEmail || !formData.customerPhone)) ||
+                            (currentStep === 7 && (!formData.deliveryMethod || !formData.deliveryDate))
+                          }
+                          className="flex-[2] bg-[#c8614a] text-white py-3 md:py-5 rounded-full font-bold uppercase text-[9px] md:text-[10px] tracking-widest flex items-center justify-center gap-2 hover:bg-[#b04d38] transition-all shadow-lg disabled:opacity-50"
+                        >
+                          Continue <ChevronRight size={14} />
                         </button>
                       )}
                     </div>
