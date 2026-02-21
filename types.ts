@@ -69,9 +69,20 @@ export interface OrderFormData {
 }
 
 export interface EnquiryData {
+  id?: string;
   name: string;
   email: string;
   phone: string;
   subject: string;
   message: string;
+  status?: 'new' | 'read' | 'replied';
+  created_at?: string;
+}
+
+export interface Order extends OrderFormData {
+  id: string;
+  user_id: string | null;
+  total_price: number;
+  status: 'pending' | 'confirmed' | 'baking' | 'delivered' | 'cancelled';
+  created_at: string;
 }

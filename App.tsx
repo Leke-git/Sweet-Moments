@@ -3,10 +3,11 @@ import {
   Menu, X, Check, ShoppingCart, Mail, Phone, MapPin, Clock, 
   ArrowRight, Loader2, Sparkles, ImageIcon,
   Instagram, Facebook, ChevronLeft, ChevronRight,
-  ChevronDown, Globe, Star, LogOut, TrendingUp, Inbox, Users, AlertCircle, Info
+  ChevronDown, Globe, Star, LogOut, TrendingUp, Inbox, Users, AlertCircle, Info,
+  Trash2, ExternalLink, RefreshCw, Eye
 } from './components/Icons';
 import { 
-  SiteConfig, OrderFormData, User, CakeItem
+  SiteConfig, OrderFormData, User, CakeItem, Order, EnquiryData
 } from './types';
 import { 
   GALLERY_CATEGORIES, REVIEWS, DEFAULT_CONFIG, ADMIN_EMAILS
@@ -44,84 +45,270 @@ const INITIAL_FORM_DATA: OrderFormData = {
 };
 
 const AdminDashboard: React.FC<{ user: User }> = ({ user }) => {
+  const [activeTab, setActiveTab] = useState<'orders' | 'enquiries'>('orders');
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [enquiries, setEnquiries] = useState<EnquiryData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchData = async () => {
+    if (!isSupabaseConfigured) return;
+    setRefreshing(true);
+    try {
+      const { data: ordersData, error: ordersError } = await supabase
+        .from('orders')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (ordersError) throw ordersError;
+      setOrders(ordersData || []);
+
+      const { data: enquiriesData, error: enquiriesError } = await supabase
+        .from('enquiries')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (enquiriesError) throw enquiriesError;
+      setEnquiries(enquiriesData || []);
+    } catch (err) {
+      console.error('Error fetching admin data:', err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const updateOrderStatus = async (orderId: string, newStatus: Order['status']) => {
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({ status: newStatus })
+        .eq('id', orderId);
+      if (error) throw error;
+      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
+    } catch (err) {
+      alert('Failed to update status');
+    }
+  };
+
+  const updateEnquiryStatus = async (enquiryId: string, newStatus: EnquiryData['status']) => {
+    try {
+      const { error } = await supabase
+        .from('enquiries')
+        .update({ status: newStatus })
+        .eq('id', enquiryId);
+      if (error) throw error;
+      setEnquiries(prev => prev.map(e => e.id === enquiryId ? { ...e, status: newStatus } : e));
+    } catch (err) {
+      alert('Failed to update status');
+    }
+  };
+
+  const deleteOrder = async (orderId: string) => {
+    if (!confirm('Are you sure you want to delete this order?')) return;
+    try {
+      const { error } = await supabase.from('orders').delete().eq('id', orderId);
+      if (error) throw error;
+      setOrders(prev => prev.filter(o => o.id !== orderId));
+    } catch (err) {
+      alert('Failed to delete order');
+    }
+  };
+
+  const deleteEnquiry = async (enquiryId: string) => {
+    if (!confirm('Are you sure you want to delete this enquiry?')) return;
+    try {
+      const { error } = await supabase.from('enquiries').delete().eq('id', enquiryId);
+      if (error) throw error;
+      setEnquiries(prev => prev.filter(e => e.id !== enquiryId));
+    } catch (err) {
+      alert('Failed to delete enquiry');
+    }
+  };
+
+  const stats = {
+    pendingOrders: orders.filter(o => o.status === 'pending').length,
+    totalRevenue: orders.reduce((sum, o) => sum + (o.status !== 'cancelled' ? Number(o.total_price) : 0), 0),
+    newEnquiries: enquiries.filter(e => e.status === 'new').length
+  };
+
   return (
     <div className="min-h-screen bg-[#1a130f] text-white p-6 md:p-12 lg:p-16 xl:px-32 pt-28 md:pt-32 animate-fade-in">
       <div className="container mx-auto space-y-8 md:space-y-12">
         <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
           <div className="space-y-2">
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-serif italic text-[#c8614a]">Studio Manager</h1>
-            <p className="text-[#9c8878] text-xs md:text-sm uppercase tracking-widest font-bold">Welcome back, {user.name}</p>
+            <div className="flex items-center gap-3">
+              <p className="text-[#9c8878] text-xs md:text-sm uppercase tracking-widest font-bold">Welcome back, {user.name}</p>
+              <button onClick={fetchData} className={`text-[#c8614a] hover:rotate-180 transition-all duration-500 ${refreshing ? 'animate-spin' : ''}`}>
+                <RefreshCw size={16} />
+              </button>
+            </div>
           </div>
-          <div className="bg-[#2c1a0e] p-5 md:p-6 rounded-[24px] md:rounded-[32px] border border-white/5 flex items-center gap-4 md:gap-6 w-full md:w-auto">
-            <div className="w-10 h-10 md:w-12 md:h-12 bg-[#c8614a]/20 rounded-xl md:rounded-2xl flex items-center justify-center text-[#c8614a] shrink-0"><TrendingUp size={20}/></div>
-            <div>
-               <p className="text-[9px] md:text-[10px] text-[#9c8878] uppercase font-black tracking-wider">Monthly Revenue</p>
-               <p className="text-xl md:text-2xl font-serif italic">$15,680</p>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 w-full md:w-auto">
+            <div className="bg-[#2c1a0e] p-4 md:p-5 rounded-2xl border border-white/5 flex items-center gap-4">
+              <div className="w-10 h-10 bg-[#c8614a]/20 rounded-xl flex items-center justify-center text-[#c8614a]"><TrendingUp size={18}/></div>
+              <div>
+                <p className="text-[8px] text-[#9c8878] uppercase font-black tracking-wider">Revenue</p>
+                <p className="text-lg font-serif italic">${stats.totalRevenue.toLocaleString()}</p>
+              </div>
+            </div>
+            <div className="bg-[#2c1a0e] p-4 md:p-5 rounded-2xl border border-white/5 flex items-center gap-4">
+              <div className="w-10 h-10 bg-[#c8614a]/20 rounded-xl flex items-center justify-center text-[#c8614a]"><ShoppingCart size={18}/></div>
+              <div>
+                <p className="text-[8px] text-[#9c8878] uppercase font-black tracking-wider">Pending</p>
+                <p className="text-lg font-serif italic">{stats.pendingOrders}</p>
+              </div>
+            </div>
+            <div className="hidden md:flex bg-[#2c1a0e] p-4 md:p-5 rounded-2xl border border-white/5 items-center gap-4">
+              <div className="w-10 h-10 bg-[#c8614a]/20 rounded-xl flex items-center justify-center text-[#c8614a]"><Inbox size={18}/></div>
+              <div>
+                <p className="text-[8px] text-[#9c8878] uppercase font-black tracking-wider">Enquiries</p>
+                <p className="text-lg font-serif italic">{stats.newEnquiries}</p>
+              </div>
             </div>
           </div>
         </header>
 
-        <div className="grid lg:grid-cols-3 gap-6 md:gap-8">
-          <div className="lg:col-span-2 space-y-6 md:space-y-8">
-            <div className="bg-[#2c1a0e] rounded-[32px] md:rounded-[48px] border border-white/5 overflow-hidden">
-               <div className="p-6 md:p-8 border-b border-white/5 flex justify-between items-center">
-                  <h3 className="text-xl md:text-2xl font-serif italic">Pending Commissions</h3>
-                  <span className="bg-[#c8614a] text-white text-[9px] md:text-[10px] px-3 py-1 rounded-full font-bold uppercase tracking-wider">12 Active</span>
-               </div>
-               <div className="overflow-x-auto">
-                  <table className="w-full text-left min-w-[500px]">
+        <div className="flex border-b border-white/5 gap-8">
+          <button 
+            onClick={() => setActiveTab('orders')}
+            className={`pb-4 text-xs md:text-sm uppercase tracking-widest font-bold transition-all relative ${activeTab === 'orders' ? 'text-[#c8614a]' : 'text-[#9c8878] hover:text-white'}`}
+          >
+            Orders
+            {activeTab === 'orders' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[#c8614a]" />}
+          </button>
+          <button 
+            onClick={() => setActiveTab('enquiries')}
+            className={`pb-4 text-xs md:text-sm uppercase tracking-widest font-bold transition-all relative ${activeTab === 'enquiries' ? 'text-[#c8614a]' : 'text-[#9c8878] hover:text-white'}`}
+          >
+            Enquiries
+            {activeTab === 'enquiries' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[#c8614a]" />}
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="py-20 flex flex-col items-center justify-center gap-4 text-[#9c8878]">
+            <Loader2 className="animate-spin" size={32} />
+            <p className="text-xs uppercase tracking-widest font-bold">Synchronizing Studio Data...</p>
+          </div>
+        ) : (
+          <div className="animate-fade-in-up">
+            {activeTab === 'orders' ? (
+              <div className="bg-[#2c1a0e] rounded-[32px] border border-white/5 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left min-w-[800px]">
                     <thead className="text-[9px] md:text-[10px] uppercase tracking-widest text-[#9c8878] bg-black/20">
                       <tr>
-                        <th className="p-4 md:p-6">Client</th>
-                        <th className="p-4 md:p-6">Type</th>
-                        <th className="p-4 md:p-6">Date</th>
-                        <th className="p-4 md:p-6 text-right">Value</th>
+                        <th className="p-6">Client</th>
+                        <th className="p-6">Details</th>
+                        <th className="p-6">Logistics</th>
+                        <th className="p-6">Status</th>
+                        <th className="p-6 text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5">
-                      {[1,2,3,4,5].map(i => (
-                        <tr key={i} className="hover:bg-white/5 transition-colors">
-                          <td className="p-4 md:p-6">
-                             <p className="font-bold text-sm md:text-base">Julianne Meyer</p>
-                             <p className="text-[10px] md:text-xs text-[#9c8878]">julianne@example.com</p>
+                      {orders.length === 0 ? (
+                        <tr><td colSpan={5} className="p-20 text-center text-[#9c8878] italic font-serif text-xl">No commissions found.</td></tr>
+                      ) : orders.map(order => (
+                        <tr key={order.id} className="hover:bg-white/5 transition-colors group">
+                          <td className="p-6">
+                            <p className="font-bold text-sm">{order.customerName}</p>
+                            <p className="text-[10px] text-[#9c8878]">{order.customerEmail}</p>
+                            <p className="text-[10px] text-[#9c8878]">{order.customerPhone}</p>
                           </td>
-                          <td className="p-4 md:p-6 text-xs md:text-sm">Tiered Celebration / Madagascar Vanilla</td>
-                          <td className="p-4 md:p-6 text-xs md:text-sm text-[#9c8878]">24 Oct 2024</td>
-                          <td className="p-4 md:p-6 text-right font-serif italic text-lg md:text-xl">$480</td>
+                          <td className="p-6">
+                            <div className="space-y-1">
+                              {order.items.map((item, idx) => (
+                                <p key={idx} className="text-xs">
+                                  <span className="text-[#c8614a] font-bold">{item.quantity}x</span> {item.selectedSize} {item.cakeFlavor}
+                                </p>
+                              ))}
+                              <p className="text-[10px] font-serif italic text-[#c8614a]">${Number(order.total_price).toLocaleString()}</p>
+                            </div>
+                          </td>
+                          <td className="p-6">
+                            <p className="text-xs font-bold">{new Date(order.deliveryDate).toLocaleDateString()}</p>
+                            <p className="text-[10px] text-[#9c8878] uppercase tracking-tighter">{order.deliveryMethod}</p>
+                            {order.deliveryAddress && <p className="text-[10px] text-[#9c8878] line-clamp-1 max-w-[150px]">{order.deliveryAddress}</p>}
+                          </td>
+                          <td className="p-6">
+                            <select 
+                              value={order.status}
+                              onChange={(e) => updateOrderStatus(order.id, e.target.value as any)}
+                              className={`text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full border-0 outline-none cursor-pointer transition-colors ${
+                                order.status === 'pending' ? 'bg-yellow-500/10 text-yellow-500' :
+                                order.status === 'confirmed' ? 'bg-blue-500/10 text-blue-500' :
+                                order.status === 'baking' ? 'bg-purple-500/10 text-purple-500' :
+                                order.status === 'delivered' ? 'bg-green-500/10 text-green-500' :
+                                'bg-red-500/10 text-red-500'
+                              }`}
+                            >
+                              <option value="pending">Pending</option>
+                              <option value="confirmed">Confirmed</option>
+                              <option value="baking">Baking</option>
+                              <option value="delivered">Delivered</option>
+                              <option value="cancelled">Cancelled</option>
+                            </select>
+                          </td>
+                          <td className="p-6 text-right">
+                            <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button onClick={() => deleteOrder(order.id)} className="p-2 text-[#9c8878] hover:text-red-500 transition-colors" title="Delete Order"><Trash2 size={16}/></button>
+                            </div>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
-               </div>
-            </div>
-          </div>
-          <div className="space-y-6 md:space-y-8">
-             <div className="bg-[#c8614a] p-8 md:p-10 rounded-[32px] md:rounded-[48px] text-white space-y-6 shadow-2xl">
-                <h3 className="text-2xl md:text-3xl font-serif italic">Quick Actions</h3>
-                <div className="space-y-3">
-                   <button className="w-full bg-white/10 hover:bg-white/20 p-4 md:p-5 rounded-xl md:rounded-2xl flex items-center justify-between transition-all group">
-                      <span className="text-xs md:text-sm font-bold uppercase tracking-widest">Update Pricing</span>
-                      <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform"/>
-                   </button>
-                   <button className="w-full bg-white/10 hover:bg-white/20 p-4 md:p-5 rounded-xl md:rounded-2xl flex items-center justify-between transition-all group">
-                      <span className="text-xs md:text-sm font-bold uppercase tracking-widest">Gallery Upload</span>
-                      <ImageIcon size={18} className="group-hover:scale-110 transition-transform"/>
-                   </button>
                 </div>
-             </div>
-             <div className="bg-[#2c1a0e] p-6 md:p-8 rounded-[32px] md:rounded-[48px] border border-white/5 space-y-6">
-                <h3 className="text-lg md:text-xl font-serif italic flex items-center gap-3"><Inbox size={18} className="text-[#c8614a]"/> Recent Enquiries</h3>
-                <div className="space-y-4">
-                   {[1,2].map(i => (
-                     <div key={i} className="p-4 rounded-xl md:rounded-2xl bg-white/5 border border-white/5 space-y-1">
-                        <p className="text-[10px] md:text-xs font-bold">New Message from Tom H.</p>
-                        <p className="text-[10px] md:text-[12px] text-[#9c8878] line-clamp-2 italic font-serif text-base md:text-lg">"I was wondering if you do custom wedding toppers..."</p>
-                     </div>
-                   ))}
-                </div>
-             </div>
+              </div>
+            ) : (
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {enquiries.length === 0 ? (
+                  <div className="col-span-full py-20 text-center text-[#9c8878] italic font-serif text-xl">No enquiries received.</div>
+                ) : enquiries.map(enquiry => (
+                  <div key={enquiry.id} className="bg-[#2c1a0e] p-6 rounded-[32px] border border-white/5 space-y-4 group relative">
+                    <div className="flex justify-between items-start">
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-[#c8614a]">{new Date(enquiry.created_at!).toLocaleDateString()}</p>
+                        <h4 className="font-serif text-xl italic">{enquiry.name}</h4>
+                        <p className="text-xs text-[#9c8878]">{enquiry.email}</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={() => deleteEnquiry(enquiry.id!)} className="p-2 text-[#9c8878] hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100" title="Delete"><Trash2 size={16}/></button>
+                      </div>
+                    </div>
+                    <div className="bg-black/20 p-4 rounded-2xl">
+                      <p className="text-sm font-light text-[#ede5dc] leading-relaxed italic font-serif">"{enquiry.message}"</p>
+                    </div>
+                    <div className="flex justify-between items-center pt-2">
+                      <select 
+                        value={enquiry.status}
+                        onChange={(e) => updateEnquiryStatus(enquiry.id!, e.target.value as any)}
+                        className={`text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full border-0 outline-none cursor-pointer transition-colors ${
+                          enquiry.status === 'new' ? 'bg-[#c8614a]/10 text-[#c8614a]' :
+                          enquiry.status === 'read' ? 'bg-blue-500/10 text-blue-500' :
+                          'bg-green-500/10 text-green-500'
+                        }`}
+                      >
+                        <option value="new">New</option>
+                        <option value="read">Read</option>
+                        <option value="replied">Replied</option>
+                      </select>
+                      <a href={`mailto:${enquiry.email}`} className="text-[#c8614a] hover:underline text-[10px] font-bold uppercase tracking-widest flex items-center gap-2">
+                        Reply <ExternalLink size={12}/>
+                      </a>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
