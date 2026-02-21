@@ -4,6 +4,8 @@ export interface CakeType {
   name: string;
   base_price: number;
   emoji: string;
+  photo: string;
+  description: string;
 }
 
 export interface Size {
@@ -39,18 +41,25 @@ export interface User {
   role: 'admin' | 'customer';
 }
 
-export interface OrderFormData {
-  selectedCakeType: string | null;
-  selectedSize: string | null;
+export interface CakeItem {
+  id: string;
+  selectedCakeType: string;
+  selectedSize: string;
+  quantity: number;
   cakeFlavor: string;
   filling: string;
   frosting: string;
-  selectedColors: string[];
   customMessage: string;
-  inspirationImage: string | null; // Base64 data
+  inspirationImage: string | null;
   inspirationMimeType: string | null;
   inspirationUrl: string;
   dietaryReqs: string[];
+  mockupUrl?: string | null;
+  mockupMatchesIdea?: boolean;
+}
+
+export interface OrderFormData {
+  items: CakeItem[];
   customerName: string;
   customerEmail: string;
   customerPhone: string;

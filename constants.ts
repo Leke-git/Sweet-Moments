@@ -86,10 +86,38 @@ export const REVIEWS = [
 
 export const DEFAULT_CONFIG: SiteConfig = {
   cake_types: [
-    { id: 'classic', name: 'Classic Round', base_price: 65, emoji: '🎂' },
-    { id: 'tiered', name: 'Tiered Celebration', base_price: 180, emoji: '🏰' },
-    { id: 'heart', name: 'Heart Shaped', base_price: 75, emoji: '❤️' },
-    { id: 'cupcakes', name: 'Artisan Cupcakes (x12)', base_price: 48, emoji: '🧁' }
+    { 
+      id: 'classic', 
+      name: 'Classic Round', 
+      base_price: 65, 
+      emoji: '🎂',
+      photo: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?auto=format&fit=crop&q=80&w=600',
+      description: 'The timeless choice for any celebration. Available in single or double layers.'
+    },
+    { 
+      id: 'tiered', 
+      name: 'Tiered Celebration', 
+      base_price: 180, 
+      emoji: '🏰',
+      photo: 'https://images.unsplash.com/photo-1535254973040-607b474cb80d?auto=format&fit=crop&q=80&w=600',
+      description: 'Grand, architectural designs for weddings and major milestones.'
+    },
+    { 
+      id: 'heart', 
+      name: 'Heart Shaped', 
+      base_price: 75, 
+      emoji: '❤️',
+      photo: 'https://images.unsplash.com/photo-1511208687438-2c5a5abb810c?auto=format&fit=crop&q=80&w=600',
+      description: 'Vintage-inspired lambeth style hearts. Perfect for romance.'
+    },
+    { 
+      id: 'cupcakes', 
+      name: 'Artisan Cupcakes (x12)', 
+      base_price: 48, 
+      emoji: '🧁',
+      photo: 'https://images.unsplash.com/photo-1550617931-e17a7b70dce2?auto=format&fit=crop&q=80&w=600',
+      description: 'Bite-sized masterpieces. Sold in dozens with custom decorations.'
+    }
   ],
   sizes: [
     { id: 'small', label: 'Small', servings: 10, multiplier: 1 },

@@ -6,7 +6,7 @@ import {
   ChevronDown, Globe, Star, LogOut, TrendingUp, Inbox, Users, AlertCircle, Info
 } from './components/Icons';
 import { 
-  SiteConfig, OrderFormData, User 
+  SiteConfig, OrderFormData, User, CakeItem
 } from './types';
 import { 
   GALLERY_CATEGORIES, REVIEWS, DEFAULT_CONFIG, ADMIN_EMAILS
@@ -16,18 +16,25 @@ import { supabase, isSupabaseConfigured } from './lib/supabase';
 
 const MAX_FILE_SIZE = 2 * 1024 * 1024;
 
-const INITIAL_FORM_DATA: OrderFormData = {
-  selectedCakeType: null,
-  selectedSize: null,
+const INITIAL_CAKE_ITEM = (): CakeItem => ({
+  id: Math.random().toString(36).substr(2, 9),
+  selectedCakeType: '',
+  selectedSize: '',
+  quantity: 1,
   cakeFlavor: '',
   filling: '',
   frosting: '',
-  selectedColors: [],
   customMessage: '',
   inspirationImage: null,
   inspirationMimeType: null,
   inspirationUrl: '',
   dietaryReqs: [],
+  mockupUrl: null,
+  mockupMatchesIdea: false
+});
+
+const INITIAL_FORM_DATA: OrderFormData = {
+  items: [INITIAL_CAKE_ITEM()],
   customerName: '',
   customerEmail: '',
   customerPhone: '',
@@ -278,13 +285,14 @@ const App: React.FC = () => {
   const [orderSuccess, setOrderSuccess] = useState(false);
   const [enquirySuccess, setEnquirySuccess] = useState(false);
   const [activeSection, setActiveSection] = useState('home');
-  const [mockupUrl, setMockupUrl] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
   const [inspirationMode, setInspirationMode] = useState<'upload' | 'url'>('upload');
   const [formData, setFormData] = useState<OrderFormData>(INITIAL_FORM_DATA);
+  const [activeItemIndex, setActiveItemIndex] = useState(0);
   const [explanation, setExplanation] = useState<{ term: string; text: string } | null>(null);
   const [explaining, setExplaining] = useState(false);
+  const [showFieldInfo, setShowFieldInfo] = useState<string | null>(null);
 
   const sectionsRef = useRef<Record<string, HTMLElement | null>>({});
 
@@ -348,11 +356,13 @@ const App: React.FC = () => {
     }
   }, []);
 
-  const updateFormData = (updates: Partial<OrderFormData>) => {
-    setFormData(prev => ({ ...prev, ...updates }));
+  const updateActiveItem = (updates: Partial<CakeItem>) => {
+    setFormData(prev => {
+      const newItems = [...prev.items];
+      newItems[activeItemIndex] = { ...newItems[activeItemIndex], ...updates };
+      return { ...prev, items: newItems };
+    });
   };
-
-  const handleSelection = (updates: Partial<OrderFormData>) => updateFormData(updates);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -362,42 +372,44 @@ const App: React.FC = () => {
     const reader = new FileReader();
     reader.onloadend = () => {
       const base64String = (reader.result as string).split(',')[1];
-      updateFormData({ inspirationImage: base64String, inspirationMimeType: file.type, inspirationUrl: '' });
+      updateActiveItem({ inspirationImage: base64String, inspirationMimeType: file.type, inspirationUrl: '' });
     };
     reader.readAsDataURL(file);
   };
 
   const handleVisualize = async () => {
-    if (!formData.selectedCakeType) return;
+    const activeItem = formData.items[activeItemIndex];
+    if (!activeItem.selectedCakeType) return;
     setAiLoading(true);
-    const cake = config?.cake_types.find(c => c.id === formData.selectedCakeType);
+    const cake = config?.cake_types.find(c => c.id === activeItem.selectedCakeType);
     try {
       const result = await generateCakeVisualMockup({
         type: cake?.name || 'Artisan Cake',
-        flavor: formData.cakeFlavor,
-        filling: formData.filling,
-        frosting: formData.frosting,
-        message: formData.customMessage,
-        inspirationImage: formData.inspirationImage ? {
-          data: formData.inspirationImage,
-          mimeType: formData.inspirationMimeType || 'image/jpeg'
+        flavor: activeItem.cakeFlavor,
+        filling: activeItem.filling,
+        frosting: activeItem.frosting,
+        message: activeItem.customMessage,
+        inspirationImage: activeItem.inspirationImage ? {
+          data: activeItem.inspirationImage,
+          mimeType: activeItem.inspirationMimeType || 'image/jpeg'
         } : undefined
       });
-      setMockupUrl(result);
+      updateActiveItem({ mockupUrl: result });
     } catch (err) { console.error(err); } 
     finally { setAiLoading(false); }
   };
 
   const calculateTotal = () => {
-    if (!config || !formData.selectedCakeType || !formData.selectedSize) return 0;
-    const cake = config.cake_types.find(c => c.id === formData.selectedCakeType);
-    const size = config.sizes.find(s => s.id === formData.selectedSize);
-    if (!cake || !size) return 0;
-    let total = cake.base_price * size.multiplier;
-    if (formData.frosting === 'Fondant') total += config.surcharges.fondant_premium;
-    total += formData.dietaryReqs.length * config.surcharges.dietary_per_item;
-    if (formData.deliveryMethod === 'delivery') total += config.surcharges.delivery_fee;
-    return Math.round(total);
+    if (!config) return 0;
+    return formData.items.reduce((sum, item) => {
+      const cake = config.cake_types.find(c => c.id === item.selectedCakeType);
+      const size = config.sizes.find(s => s.id === item.selectedSize);
+      if (!cake || !size) return sum;
+      let itemTotal = (cake.base_price * size.multiplier);
+      if (item.frosting === 'Fondant') itemTotal += config.surcharges.fondant_premium;
+      itemTotal += item.dietaryReqs.length * config.surcharges.dietary_per_item;
+      return sum + (itemTotal * item.quantity);
+    }, formData.deliveryMethod === 'delivery' ? config.surcharges.delivery_fee : 0);
   };
 
   const handleSubmitOrder = async (e: React.FormEvent) => {
@@ -408,12 +420,9 @@ const App: React.FC = () => {
     }
     setSubmittingOrder(true);
     try {
-      const selectedSize = config?.sizes.find(s => s.id === formData.selectedSize);
       const payload = { 
         ...formData, 
-        servings: selectedSize?.servings, 
         total_price: calculateTotal(), 
-        mockup_image: mockupUrl,
         user_id: user?.id || null 
       };
       const { error } = await supabase.from('orders').insert([payload]);
@@ -471,32 +480,39 @@ const App: React.FC = () => {
     </a>
   );
 
+  const FIELD_EXPLANATIONS: Record<string, string> = {
+    sponge: "The foundation of your cake. A light, airy, or dense baked base that carries the primary flavor profile.",
+    filling: "The luscious layers between the sponge. Adds moisture, texture, and a secondary burst of flavor.",
+    frosting: "The outer architectural finish. Protects the cake while providing a smooth or textured decorative surface."
+  };
+
+  const activeItem = formData.items[activeItemIndex];
+
   const TOTAL_STEPS = 8;
   const getStepContent = (step: number) => {
     switch (step) {
-      case 1: return { title: "Select Your Base", subtext: "Fundamental shape of your celebration." };
-      case 2: return { title: "Define the Scale", subtext: "How many moments are we sharing?" };
+      case 1: return { title: "Select Your Base", subtext: "The architectural foundation of your celebration." };
+      case 2: return { title: "Scale & Quantity", subtext: "How many guests are we serving today?" };
       case 3: return { title: "Flavour Studio", subtext: "Sensory architecture of your bespoke bake." };
       case 4: return { title: "Themes & Nuance", subtext: "Personal touches and dietary considerations." };
       case 5: return { title: "Visual Inspiration", subtext: "Share your moodboards or references." };
       case 6: return { title: "Contact Profile", subtext: "Where should we reach out?" };
       case 7: return { title: "Logistics", subtext: "Timeline and handover details." };
-      case 8: return { title: "Final Review", subtext: "The blueprint for your celebration." };
+      case 8: return { title: "Order Summary", subtext: "The blueprint for your celebration." };
       default: return { title: "Bake Studio", subtext: "" };
     }
   };
   const stepInfo = getStepContent(currentStep);
 
-  const summaryItems = [
-    { label: 'Cake Type', value: config?.cake_types.find(c => c.id === formData.selectedCakeType)?.name },
-    { label: 'Size', value: config?.sizes.find(s => s.id === formData.selectedSize)?.label },
-    { label: 'Flavor', value: formData.cakeFlavor },
-    { label: 'Filling', value: formData.filling },
-    { label: 'Frosting', value: formData.frosting },
-    { label: 'Method', value: formData.deliveryMethod },
-    { label: 'Date', value: formData.deliveryDate },
-    { label: 'Dietary', value: formData.dietaryReqs.join(', ') }
-  ].filter(item => item.value);
+  const summaryItems = activeItem ? [
+    { label: 'Cake Type', value: config?.cake_types.find(c => c.id === activeItem.selectedCakeType)?.name },
+    { label: 'Size', value: config?.sizes.find(s => s.id === activeItem.selectedSize)?.label },
+    { label: 'Quantity', value: activeItem.quantity.toString() },
+    { label: 'Flavor', value: activeItem.cakeFlavor },
+    { label: 'Filling', value: activeItem.filling },
+    { label: 'Frosting', value: activeItem.frosting },
+    { label: 'Dietary', value: activeItem.dietaryReqs.join(', ') }
+  ].filter(item => item.value) : [];
 
   if (loading) return (
     <div className="fixed inset-0 bg-[#fdf8f4] flex flex-col items-center justify-center z-[9999]">
@@ -736,26 +752,54 @@ const App: React.FC = () => {
                <form onSubmit={handleSubmitOrder} className="min-h-full flex flex-col">
                   <div key={currentStep} className="step-reveal min-h-full">
                     {currentStep === 1 && (
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 animate-fade-in-up">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6 animate-fade-in-up">
                         {config?.cake_types.map(cake => (
-                          <div key={cake.id} onClick={() => handleSelection({ selectedCakeType: cake.id })} className={`relative p-4 md:p-8 rounded-[24px] md:rounded-[32px] border-2 cursor-pointer transition-all ${formData.selectedCakeType === cake.id ? 'border-[#c8614a] bg-[#c8614a]/5' : 'border-[#ede5dc] hover:border-[#d4956a]'}`}>
-                            <div className="text-3xl md:text-5xl mb-2 md:mb-4 text-center">{cake.emoji}</div>
-                            <h4 className="text-[9px] md:text-xs font-bold text-center uppercase tracking-widest">{cake.name}</h4>
-                            <p className="text-[8px] md:text-[10px] text-[#9c8878] text-center mt-1 md:mt-2 font-black">FROM ${cake.base_price}</p>
-                            {formData.selectedCakeType === cake.id && <div className="absolute top-2 right-2 md:top-4 md:right-4 bg-[#c8614a] text-white rounded-full p-1"><Check size={8}/></div>}
+                          <div key={cake.id} onClick={() => updateActiveItem({ selectedCakeType: cake.id })} className={`relative group rounded-[32px] md:rounded-[40px] border-2 cursor-pointer transition-all overflow-hidden ${activeItem.selectedCakeType === cake.id ? 'border-[#c8614a] ring-4 ring-[#c8614a]/10' : 'border-[#ede5dc] hover:border-[#d4956a]'}`}>
+                            <div className="aspect-[16/10] overflow-hidden">
+                              <img src={cake.photo} alt={cake.name} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                            </div>
+                            <div className="p-6 md:p-8 bg-white">
+                              <div className="flex justify-between items-start mb-2">
+                                <h4 className="text-xl md:text-2xl font-serif italic text-[#2c1a0e]">{cake.name}</h4>
+                                <span className="text-2xl">{cake.emoji}</span>
+                              </div>
+                              <p className="text-xs text-[#9c8878] font-light leading-relaxed mb-4">{cake.description}</p>
+                              <p className="text-[10px] font-black uppercase tracking-widest text-[#c8614a]">From ${cake.base_price}</p>
+                            </div>
+                            {activeItem.selectedCakeType === cake.id && <div className="absolute top-4 right-4 bg-[#c8614a] text-white rounded-full p-2 shadow-lg"><Check size={16}/></div>}
                           </div>
                         ))}
                       </div>
                     )}
 
                     {currentStep === 2 && (
-                      <div className="grid gap-3 md:gap-4 max-w-md mx-auto animate-fade-in-up">
-                        {config?.sizes.map(size => (
-                          <button key={size.id} type="button" onClick={() => handleSelection({ selectedSize: size.id })} className={`p-6 md:p-8 rounded-[24px] md:rounded-[32px] border-2 text-left transition-all flex items-center justify-between group ${formData.selectedSize === size.id ? 'border-[#c8614a] bg-[#c8614a]/5' : 'border-[#ede5dc] hover:border-[#d4956a]'}`}>
-                            <div><p className="font-serif text-xl md:text-2xl italic text-[#2c1a0e]">{size.label}</p><p className="text-[9px] md:text-xs font-bold text-[#9c8878] uppercase tracking-widest">Serves up to {size.servings}</p></div>
-                            {formData.selectedSize === size.id && <Check className="text-[#c8614a]" size={20} />}
-                          </button>
-                        ))}
+                      <div className="max-w-md mx-auto space-y-8 md:space-y-12 animate-fade-in-up">
+                        <div className="space-y-4">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-[#c8614a] px-2">Select Scale</label>
+                          <div className="grid gap-3">
+                            {config?.sizes
+                              .filter(size => {
+                                if (activeItem.selectedCakeType === 'cupcakes') return size.id === 'small';
+                                return true;
+                              })
+                              .map(size => (
+                                <button key={size.id} type="button" onClick={() => updateActiveItem({ selectedSize: size.id })} className={`p-6 rounded-[24px] border-2 text-left transition-all flex items-center justify-between group ${activeItem.selectedSize === size.id ? 'border-[#c8614a] bg-[#c8614a]/5' : 'border-[#ede5dc] hover:border-[#d4956a]'}`}>
+                                  <div><p className="font-serif text-xl italic text-[#2c1a0e]">{size.label}</p><p className="text-[10px] font-bold text-[#9c8878] uppercase tracking-widest">Serves up to {size.servings}</p></div>
+                                  {activeItem.selectedSize === size.id && <Check className="text-[#c8614a]" size={20} />}
+                                </button>
+                              ))}
+                          </div>
+                        </div>
+
+                        <div className="space-y-4">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-[#c8614a] px-2">Quantity</label>
+                          <div className="flex items-center gap-6 bg-[#fdf8f4] p-4 rounded-2xl border border-[#ede5dc]">
+                            <button type="button" onClick={() => updateActiveItem({ quantity: Math.max(1, activeItem.quantity - 1) })} className="w-10 h-10 rounded-full border border-[#ede5dc] flex items-center justify-center text-[#c8614a] hover:bg-white transition-colors">-</button>
+                            <span className="text-2xl font-serif italic text-[#2c1a0e] w-12 text-center">{activeItem.quantity}</span>
+                            <button type="button" onClick={() => updateActiveItem({ quantity: activeItem.quantity + 1 })} className="w-10 h-10 rounded-full border border-[#ede5dc] flex items-center justify-center text-[#c8614a] hover:bg-white transition-colors">+</button>
+                            <span className="text-[10px] font-black uppercase tracking-widest text-[#9c8878] ml-auto">Cakes</span>
+                          </div>
+                        </div>
                       </div>
                     )}
 
@@ -764,16 +808,21 @@ const App: React.FC = () => {
                         <div className="space-y-2 md:space-y-3">
                           <div className="flex justify-between items-center">
                             <label className="text-[9px] md:text-[10px] font-black uppercase tracking-[0.2em] md:tracking-[0.3em] text-[#c8614a]">01. The Sponge</label>
-                            {formData.cakeFlavor && (
-                              <button type="button" onClick={() => handleExplain(formData.cakeFlavor, 'sponge flavor')} className="text-[#9c8878] hover:text-[#c8614a] transition-colors flex items-center gap-1 text-[8px] uppercase font-bold">
+                            <div className="relative">
+                              <button type="button" onClick={() => setShowFieldInfo(showFieldInfo === 'sponge' ? null : 'sponge')} className="text-[#9c8878] hover:text-[#c8614a] transition-colors flex items-center gap-1 text-[8px] uppercase font-bold">
                                 <Info size={10}/> What is this?
                               </button>
-                            )}
+                              {showFieldInfo === 'sponge' && (
+                                <div className="absolute top-full right-0 mt-2 w-48 p-3 bg-white border border-[#ede5dc] rounded-xl shadow-xl z-50 animate-scale-in">
+                                  <p className="text-[10px] text-[#9c8878] leading-relaxed italic font-serif">{FIELD_EXPLANATIONS.sponge}</p>
+                                </div>
+                              )}
+                            </div>
                           </div>
                           <div className="relative">
                             <select 
-                              value={formData.cakeFlavor} 
-                              onChange={(e) => updateFormData({ cakeFlavor: e.target.value })}
+                              value={activeItem.cakeFlavor} 
+                              onChange={(e) => updateActiveItem({ cakeFlavor: e.target.value })}
                               className="w-full bg-[#fdf8f4] border border-[#ede5dc] rounded-xl md:rounded-2xl p-4 md:p-5 outline-none text-xs md:text-sm appearance-none cursor-pointer focus:border-[#c8614a] transition-colors"
                             >
                               <option value="">Select Flavor</option>
@@ -785,16 +834,21 @@ const App: React.FC = () => {
                         <div className="space-y-2 md:space-y-3">
                           <div className="flex justify-between items-center">
                             <label className="text-[9px] md:text-[10px] font-black uppercase tracking-[0.2em] md:tracking-[0.3em] text-[#c8614a]">02. Internal Filling</label>
-                            {formData.filling && (
-                              <button type="button" onClick={() => handleExplain(formData.filling, 'cake filling')} className="text-[#9c8878] hover:text-[#c8614a] transition-colors flex items-center gap-1 text-[8px] uppercase font-bold">
+                            <div className="relative">
+                              <button type="button" onClick={() => setShowFieldInfo(showFieldInfo === 'filling' ? null : 'filling')} className="text-[#9c8878] hover:text-[#c8614a] transition-colors flex items-center gap-1 text-[8px] uppercase font-bold">
                                 <Info size={10}/> What is this?
                               </button>
-                            )}
+                              {showFieldInfo === 'filling' && (
+                                <div className="absolute top-full right-0 mt-2 w-48 p-3 bg-white border border-[#ede5dc] rounded-xl shadow-xl z-50 animate-scale-in">
+                                  <p className="text-[10px] text-[#9c8878] leading-relaxed italic font-serif">{FIELD_EXPLANATIONS.filling}</p>
+                                </div>
+                              )}
+                            </div>
                           </div>
                           <div className="relative">
                             <select 
-                              value={formData.filling} 
-                              onChange={(e) => updateFormData({ filling: e.target.value })}
+                              value={activeItem.filling} 
+                              onChange={(e) => updateActiveItem({ filling: e.target.value })}
                               className="w-full bg-[#fdf8f4] border border-[#ede5dc] rounded-xl md:rounded-2xl p-4 md:p-5 outline-none text-xs md:text-sm appearance-none cursor-pointer focus:border-[#c8614a] transition-colors"
                             >
                               <option value="">Select Filling</option>
@@ -806,16 +860,21 @@ const App: React.FC = () => {
                         <div className="space-y-2 md:space-y-3">
                           <div className="flex justify-between items-center">
                             <label className="text-[9px] md:text-[10px] font-black uppercase tracking-[0.2em] md:tracking-[0.3em] text-[#c8614a]">03. Final Finish</label>
-                            {formData.frosting && (
-                              <button type="button" onClick={() => handleExplain(formData.frosting, 'cake frosting')} className="text-[#9c8878] hover:text-[#c8614a] transition-colors flex items-center gap-1 text-[8px] uppercase font-bold">
+                            <div className="relative">
+                              <button type="button" onClick={() => setShowFieldInfo(showFieldInfo === 'frosting' ? null : 'frosting')} className="text-[#9c8878] hover:text-[#c8614a] transition-colors flex items-center gap-1 text-[8px] uppercase font-bold">
                                 <Info size={10}/> What is this?
                               </button>
-                            )}
+                              {showFieldInfo === 'frosting' && (
+                                <div className="absolute top-full right-0 mt-2 w-48 p-3 bg-white border border-[#ede5dc] rounded-xl shadow-xl z-50 animate-scale-in">
+                                  <p className="text-[10px] text-[#9c8878] leading-relaxed italic font-serif">{FIELD_EXPLANATIONS.frosting}</p>
+                                </div>
+                              )}
+                            </div>
                           </div>
                           <div className="relative">
                             <select 
-                              value={formData.frosting} 
-                              onChange={(e) => updateFormData({ frosting: e.target.value })}
+                              value={activeItem.frosting} 
+                              onChange={(e) => updateActiveItem({ frosting: e.target.value })}
                               className="w-full bg-[#fdf8f4] border border-[#ede5dc] rounded-xl md:rounded-2xl p-4 md:p-5 outline-none text-xs md:text-sm appearance-none cursor-pointer focus:border-[#c8614a] transition-colors"
                             >
                               <option value="">Select Frosting</option>
@@ -824,15 +883,6 @@ const App: React.FC = () => {
                             <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#c8614a] pointer-events-none" />
                           </div>
                         </div>
-
-                        {explanation && (
-                          <div className="p-4 bg-[#c8614a]/5 border border-[#c8614a]/20 rounded-2xl animate-fade-in relative">
-                            <button onClick={() => setExplanation(null)} className="absolute top-2 right-2 text-[#c8614a] opacity-50 hover:opacity-100"><X size={12}/></button>
-                            <p className="text-[8px] uppercase font-black text-[#c8614a] mb-1">About {explanation.term}</p>
-                            <p className="text-[10px] md:text-xs text-[#9c8878] leading-relaxed italic font-serif">{explanation.text}</p>
-                          </div>
-                        )}
-                        {explaining && <div className="flex items-center justify-center gap-2 text-[#c8614a] animate-pulse"><Loader2 size={12} className="animate-spin"/><span className="text-[8px] uppercase font-bold">Consulting the baker...</span></div>}
 
                         <p className="text-[9px] md:text-[10px] text-[#9c8878] text-center italic font-light pt-4">
                           Unsure about these terms? Feel free to skip this step. <br/>
@@ -845,16 +895,16 @@ const App: React.FC = () => {
                       <div className="space-y-6 md:space-y-8 max-w-lg mx-auto animate-fade-in-up">
                         <div className="space-y-2 md:space-y-3">
                           <label className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-[#9c8878]">Decorative Theme / Message</label>
-                          <textarea placeholder="e.g. 'Golden 30th', 'Pastel Florals'..." maxLength={100} value={formData.customMessage} onChange={e => updateFormData({ customMessage: e.target.value })} className="w-full bg-[#fdf8f4] border border-[#ede5dc] rounded-2xl md:rounded-[24px] p-4 md:p-6 outline-none focus:border-[#c8614a] min-h-[120px] md:min-h-[140px] text-sm leading-relaxed transition-colors" />
+                          <textarea placeholder="e.g. 'Golden 30th', 'Pastel Florals'..." maxLength={100} value={activeItem.customMessage} onChange={e => updateActiveItem({ customMessage: e.target.value })} className="w-full bg-[#fdf8f4] border border-[#ede5dc] rounded-2xl md:rounded-[24px] p-4 md:p-6 outline-none focus:border-[#c8614a] min-h-[120px] md:min-h-[140px] text-sm leading-relaxed transition-colors" />
                         </div>
                         <div className="space-y-3 md:space-y-4">
                           <label className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-[#9c8878]">Dietary Requirements</label>
                           <div className="flex flex-wrap gap-2">
                             {config?.dietary_options.map(opt => (
                               <button key={opt} type="button" onClick={() => {
-                                  const cur = formData.dietaryReqs;
-                                  updateFormData({ dietaryReqs: cur.includes(opt) ? cur.filter(d => d !== opt) : [...cur, opt] });
-                                }} className={`px-4 md:px-6 py-2 md:py-3 rounded-full text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all border-2 ${formData.dietaryReqs.includes(opt) ? 'border-[#c8614a] text-[#c8614a] bg-[#c8614a]/5' : 'border-[#ede5dc] text-[#9c8878] hover:border-[#d4956a]'}`}>{opt}</button>
+                                  const cur = activeItem.dietaryReqs;
+                                  updateActiveItem({ dietaryReqs: cur.includes(opt) ? cur.filter(d => d !== opt) : [...cur, opt] });
+                                }} className={`px-4 md:px-6 py-2 md:py-3 rounded-full text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all border-2 ${activeItem.dietaryReqs.includes(opt) ? 'border-[#c8614a] text-[#c8614a] bg-[#c8614a]/5' : 'border-[#ede5dc] text-[#9c8878] hover:border-[#d4956a]'}`}>{opt}</button>
                             ))}
                           </div>
                         </div>
@@ -871,13 +921,13 @@ const App: React.FC = () => {
                           <div className="relative group">
                             <input type="file" accept="image/*" onChange={handleFileUpload} className="hidden" id="inspiration-upload" />
                             <label htmlFor="inspiration-upload" className="flex flex-col items-center justify-center w-full h-48 md:h-56 border-2 border-dashed border-[#ede5dc] rounded-[32px] md:rounded-[40px] bg-[#fdf8f4] cursor-pointer hover:bg-[#ede5dc] transition-all overflow-hidden relative">
-                              {formData.inspirationImage ? <img src={`data:${formData.inspirationMimeType};base64,${formData.inspirationImage}`} alt="Preview" className="w-full h-full object-cover" /> : <div className="flex flex-col items-center gap-2 md:gap-3 text-[#c8614a]"><ImageIcon size={32} /><span className="font-bold text-sm">Select Image</span><span className="text-[9px] md:text-[10px] text-[#9c8878] uppercase font-black tracking-widest">Max 2MB</span></div>}
+                              {activeItem.inspirationImage ? <img src={`data:${activeItem.inspirationMimeType};base64,${activeItem.inspirationImage}`} alt="Preview" className="w-full h-full object-cover" /> : <div className="flex flex-col items-center gap-2 md:gap-3 text-[#c8614a]"><ImageIcon size={32} /><span className="font-bold text-sm">Select Image</span><span className="text-[9px] md:text-[10px] text-[#9c8878] uppercase font-black tracking-widest">Max 2MB</span></div>}
                             </label>
                             {fileError && <p className="text-red-500 text-[9px] md:text-[10px] mt-2 text-center font-bold uppercase tracking-wider">{fileError}</p>}
                           </div>
                         ) : (
                           <div className="space-y-4">
-                            <input placeholder="Paste Image URL..." value={formData.inspirationUrl} onChange={e => updateFormData({ inspirationUrl: e.target.value, inspirationImage: null })} className="w-full bg-[#fdf8f4] border-b-2 border-[#ede5dc] py-4 outline-none focus:border-[#c8614a] px-2 text-sm transition-colors" />
+                            <input placeholder="Paste Image URL..." value={activeItem.inspirationUrl} onChange={e => updateActiveItem({ inspirationUrl: e.target.value, inspirationImage: null })} className="w-full bg-[#fdf8f4] border-b-2 border-[#ede5dc] py-4 outline-none focus:border-[#c8614a] px-2 text-sm transition-colors" />
                           </div>
                         )}
                       </div>
@@ -885,19 +935,19 @@ const App: React.FC = () => {
 
                     {currentStep === 6 && (
                       <div className="max-w-md mx-auto space-y-6 md:space-y-8 animate-fade-in-up">
-                        <input required placeholder="Full Name" value={formData.customerName} onChange={e => updateFormData({ customerName: e.target.value })} className="w-full bg-white border-b-2 border-[#ede5dc] py-4 md:py-5 outline-none focus:border-[#c8614a] px-2 text-base md:text-lg font-serif italic transition-colors" />
-                        <input required type="email" placeholder="Email Address" value={formData.customerEmail} onChange={e => updateFormData({ customerEmail: e.target.value })} className="w-full bg-white border-b-2 border-[#ede5dc] py-4 md:py-5 outline-none focus:border-[#c8614a] px-2 text-base md:text-lg transition-colors" />
-                        <input required type="tel" placeholder="Phone Number" value={formData.customerPhone} onChange={e => updateFormData({ customerPhone: e.target.value })} className="w-full bg-white border-b-2 border-[#ede5dc] py-4 md:py-5 outline-none focus:border-[#c8614a] px-2 text-base md:text-lg transition-colors" />
+                        <input required placeholder="Full Name" value={formData.customerName} onChange={e => setFormData(prev => ({ ...prev, customerName: e.target.value }))} className="w-full bg-white border-b-2 border-[#ede5dc] py-4 md:py-5 outline-none focus:border-[#c8614a] px-2 text-base md:text-lg font-serif italic transition-colors" />
+                        <input required type="email" placeholder="Email Address" value={formData.customerEmail} onChange={e => setFormData(prev => ({ ...prev, customerEmail: e.target.value }))} className="w-full bg-white border-b-2 border-[#ede5dc] py-4 md:py-5 outline-none focus:border-[#c8614a] px-2 text-base md:text-lg transition-colors" />
+                        <input required type="tel" placeholder="Phone Number" value={formData.customerPhone} onChange={e => setFormData(prev => ({ ...prev, customerPhone: e.target.value }))} className="w-full bg-white border-b-2 border-[#ede5dc] py-4 md:py-5 outline-none focus:border-[#c8614a] px-2 text-base md:text-lg transition-colors" />
                       </div>
                     )}
 
                     {currentStep === 7 && (
                       <div className="max-w-md mx-auto space-y-8 md:space-y-10 animate-fade-in-up">
                         <div className="grid grid-cols-2 gap-3 md:gap-4">
-                          <button type="button" onClick={() => updateFormData({ deliveryMethod: 'pickup' })} className={`p-4 md:p-6 rounded-2xl md:rounded-[28px] border-2 transition-all ${formData.deliveryMethod === 'pickup' ? 'border-[#c8614a] bg-[#c8614a]/10' : 'border-[#ede5dc] hover:border-[#d4956a]'}`}>
+                          <button type="button" onClick={() => setFormData(prev => ({ ...prev, deliveryMethod: 'pickup' }))} className={`p-4 md:p-6 rounded-2xl md:rounded-[28px] border-2 transition-all ${formData.deliveryMethod === 'pickup' ? 'border-[#c8614a] bg-[#c8614a]/10' : 'border-[#ede5dc] hover:border-[#d4956a]'}`}>
                             <p className="font-bold text-xs md:text-sm uppercase tracking-widest text-[#2c1a0e]">Pickup</p><p className="text-[8px] md:text-[10px] text-[#9c8878] font-black uppercase tracking-tighter">Studio (Free)</p>
                           </button>
-                          <button type="button" onClick={() => updateFormData({ deliveryMethod: 'delivery' })} className={`p-4 md:p-6 rounded-2xl md:rounded-[28px] border-2 transition-all ${formData.deliveryMethod === 'delivery' ? 'border-[#c8614a] bg-[#c8614a]/10' : 'border-[#ede5dc] hover:border-[#d4956a]'}`}>
+                          <button type="button" onClick={() => setFormData(prev => ({ ...prev, deliveryMethod: 'delivery' }))} className={`p-4 md:p-6 rounded-2xl md:rounded-[28px] border-2 transition-all ${formData.deliveryMethod === 'delivery' ? 'border-[#c8614a] bg-[#c8614a]/10' : 'border-[#ede5dc] hover:border-[#d4956a]'}`}>
                             <p className="font-bold text-xs md:text-sm uppercase tracking-widest text-[#2c1a0e]">Delivery</p><p className="text-[8px] md:text-[10px] text-[#9c8878] font-black uppercase tracking-tighter">+${config?.surcharges.delivery_fee}</p>
                           </button>
                         </div>
@@ -905,44 +955,72 @@ const App: React.FC = () => {
                         {formData.deliveryMethod === 'delivery' && (
                           <div className="space-y-3 md:space-y-4 animate-fade-in-up">
                             <label className="text-[9px] md:text-[10px] uppercase font-black text-[#c8614a] px-2 tracking-[0.2em]">Delivery Address</label>
-                            <textarea required placeholder="Full street address..." value={formData.deliveryAddress} onChange={e => updateFormData({ deliveryAddress: e.target.value })} className="w-full bg-[#fdf8f4] border border-[#ede5dc] rounded-xl md:rounded-[24px] p-4 md:p-5 outline-none focus:border-[#c8614a] text-sm h-24 md:h-32 transition-colors" />
+                            <textarea required placeholder="Full street address..." value={formData.deliveryAddress} onChange={e => setFormData(prev => ({ ...prev, deliveryAddress: e.target.value }))} className="w-full bg-[#fdf8f4] border border-[#ede5dc] rounded-xl md:rounded-[24px] p-4 md:p-5 outline-none focus:border-[#c8614a] text-sm h-24 md:h-32 transition-colors" />
                           </div>
                         )}
 
                         <div className="space-y-3 md:space-y-4">
                           <label className="text-[9px] md:text-[10px] uppercase font-black text-[#c8614a] px-2 tracking-[0.2em]">Required Date</label>
-                          <input required type="date" min={new Date(new Date().setDate(new Date().getDate() + (config?.min_days_notice || 5))).toISOString().split('T')[0]} value={formData.deliveryDate} onChange={e => updateFormData({ deliveryDate: e.target.value })} className="w-full bg-[#fdf8f4] border-b-2 border-[#ede5dc] py-4 md:py-5 outline-none focus:border-[#c8614a] px-2 text-base md:text-lg transition-colors" />
+                          <input required type="date" min={new Date(new Date().setDate(new Date().getDate() + (config?.min_days_notice || 5))).toISOString().split('T')[0]} value={formData.deliveryDate} onChange={e => setFormData(prev => ({ ...prev, deliveryDate: e.target.value }))} className="w-full bg-[#fdf8f4] border-b-2 border-[#ede5dc] py-4 md:py-5 outline-none focus:border-[#c8614a] px-2 text-base md:text-lg transition-colors" />
                         </div>
                       </div>
                     )}
 
                     {currentStep === 8 && !orderSuccess && (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 items-start animate-fade-in-up">
-                        <div className="bg-[#fdf8f4] p-4 md:p-8 rounded-[24px] md:rounded-[32px] border border-[#ede5dc] space-y-4 md:space-y-6">
-                           <h4 className="font-serif italic text-lg md:text-xl border-b border-[#ede5dc] pb-2 md:pb-3 text-[#2c1a0e]">Order Summary</h4>
-                           <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-[10px] md:text-xs">
-                              {summaryItems.map(item => (
-                                <div key={item.label} className="summary-item">
-                                  <span className="text-[7px] md:text-[8px] uppercase font-black text-[#9c8878] tracking-widest block">{item.label}</span>
-                                  <p className="font-bold text-[#c8614a] truncate">{item.value}</p>
-                                </div>
-                              ))}
-                           </div>
-                           <div className="pt-3 md:pt-4 border-t border-[#ede5dc] flex justify-between items-center">
-                             <span className="font-serif text-xl md:text-2xl italic text-[#2c1a0e]">Total</span>
-                             <span className="text-2xl md:text-3xl font-bold text-[#c8614a]">${calculateTotal()}</span>
-                           </div>
+                        <div className="space-y-4 md:space-y-6">
+                          <div className="bg-[#fdf8f4] p-4 md:p-8 rounded-[24px] md:rounded-[32px] border border-[#ede5dc] space-y-4 md:space-y-6">
+                             <div className="flex justify-between items-center border-b border-[#ede5dc] pb-2 md:pb-3">
+                               <h4 className="font-serif italic text-lg md:text-xl text-[#2c1a0e]">Order Summary</h4>
+                               <div className="flex items-center gap-2">
+                                 {formData.items.length > 1 && (
+                                   <button type="button" onClick={() => setActiveItemIndex(prev => (prev - 1 + formData.items.length) % formData.items.length)} className="text-[#c8614a] hover:scale-110 transition-transform"><ChevronLeft size={14}/></button>
+                                 )}
+                                 <span className="text-[10px] font-black text-[#c8614a] uppercase tracking-widest">Item {activeItemIndex + 1} of {formData.items.length}</span>
+                                 {formData.items.length > 1 && (
+                                   <button type="button" onClick={() => setActiveItemIndex(prev => (prev + 1) % formData.items.length)} className="text-[#c8614a] hover:scale-110 transition-transform"><ChevronRight size={14}/></button>
+                                 )}
+                               </div>
+                             </div>
+                             <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-[10px] md:text-xs">
+                                {summaryItems.map(item => (
+                                  <div key={item.label} className="summary-item">
+                                    <span className="text-[7px] md:text-[8px] uppercase font-black text-[#9c8878] tracking-widest block">{item.label}</span>
+                                    <p className="font-bold text-[#c8614a] truncate">{item.value}</p>
+                                  </div>
+                                ))}
+                             </div>
+                             <div className="pt-3 md:pt-4 border-t border-[#ede5dc] flex justify-between items-center">
+                               <span className="font-serif text-xl md:text-2xl italic text-[#2c1a0e]">Total</span>
+                               <span className="text-2xl md:text-3xl font-bold text-[#c8614a]">${calculateTotal()}</span>
+                             </div>
+                          </div>
                         </div>
+
                         <div className="space-y-4 md:space-y-6">
                            <div className="bg-[#fdf8f4] aspect-video md:aspect-square rounded-[24px] md:rounded-[32px] border-2 border-dashed border-[#d4956a] flex flex-col items-center justify-center p-4 relative overflow-hidden shadow-inner">
                               {aiLoading ? <div className="text-center animate-pulse"><Loader2 className="animate-spin text-[#c8614a] w-8 h-8 mx-auto" /><p className="text-[8px] md:text-[9px] text-[#9c8878] mt-2 font-bold uppercase tracking-widest">Painting...</p></div>
-                                : mockupUrl ? <img src={mockupUrl} className="w-full h-full object-cover rounded-[16px] md:rounded-[24px] shadow-xl" alt="Cake Mockup" />
-                                : <div className="text-center space-y-2">
+                                : activeItem.mockupUrl ? (
+                                  <div className="relative w-full h-full">
+                                    <img src={activeItem.mockupUrl} className="w-full h-full object-cover rounded-[16px] md:rounded-[24px] shadow-xl" alt="Cake Mockup" />
+                                    <button type="button" onClick={handleVisualize} className="absolute top-4 right-4 bg-white/90 backdrop-blur p-2 rounded-full shadow-lg text-[#c8614a] hover:scale-110 transition-transform"><Sparkles size={16}/></button>
+                                  </div>
+                                ) : (
+                                  <div className="text-center space-y-2">
                                     <Sparkles className="text-[#c8614a] w-6 h-6 mx-auto" />
                                     <button type="button" onClick={handleVisualize} className="bg-[#c8614a] text-white px-6 py-2 rounded-full text-[9px] font-bold uppercase tracking-widest shadow-lg hover:bg-[#b04d38] transition-all">Visualise</button>
                                     <p className="text-[7px] md:text-[8px] text-[#9c8878] uppercase font-black tracking-widest max-w-[140px] mx-auto">Click to generate an AI-powered preview of your bespoke cake</p>
-                                  </div>}
+                                  </div>
+                                )}
                            </div>
+                           
+                           {activeItem.mockupUrl && (
+                             <label className="flex items-center gap-3 p-4 bg-[#fdf8f4] rounded-2xl border border-[#ede5dc] cursor-pointer group">
+                               <input type="checkbox" checked={activeItem.mockupMatchesIdea} onChange={e => updateActiveItem({ mockupMatchesIdea: e.target.checked })} className="w-5 h-5 rounded border-[#ede5dc] text-[#c8614a] focus:ring-[#c8614a]" />
+                               <span className="text-[9px] md:text-[10px] text-[#9c8878] uppercase font-black tracking-widest group-hover:text-[#c8614a] transition-colors">This matches my vision</span>
+                             </label>
+                           )}
+
                            <button type="submit" disabled={submittingOrder} className="w-full bg-[#c8614a] text-white py-4 rounded-full font-bold uppercase tracking-widest text-[10px] shadow-xl flex items-center justify-center gap-2 hover:bg-[#b04d38] transition-all disabled:opacity-50">
                               {submittingOrder ? <Loader2 className="animate-spin" /> : <ShoppingCart size={16} />} Confirm Order
                            </button>
@@ -951,34 +1029,45 @@ const App: React.FC = () => {
                     )}
                   </div>
                   {!orderSuccess && (
-                    <div className="mt-auto pt-4 md:pt-6 flex gap-4 md:gap-6">
-                      {currentStep > 1 && (
-                        <button type="button" onClick={() => setCurrentStep(prev => prev - 1)} className="flex-1 border-2 border-[#ede5dc] text-[#9c8878] py-3 md:py-5 rounded-full font-bold uppercase text-[9px] md:text-[10px] tracking-widest flex items-center justify-center gap-2 hover:border-[#c8614a] hover:text-[#c8614a] transition-all">
-                          <ChevronLeft size={14} /> Back
-                        </button>
-                      )}
-                      {currentStep < 8 && (
-                        <button 
-                          type="button" 
-                          onClick={() => setCurrentStep(prev => prev + 1)} 
-                          disabled={
-                            (currentStep === 1 && !formData.selectedCakeType) ||
-                            (currentStep === 2 && !formData.selectedSize) ||
-                            (currentStep === 6 && (!formData.customerName || !formData.customerEmail || !formData.customerPhone)) ||
-                            (currentStep === 7 && (!formData.deliveryMethod || !formData.deliveryDate))
-                          }
-                          className="flex-[2] bg-[#c8614a] text-white py-3 md:py-5 rounded-full font-bold uppercase text-[9px] md:text-[10px] tracking-widest flex items-center justify-center gap-2 hover:bg-[#b04d38] transition-all shadow-lg disabled:opacity-50"
-                        >
-                          Continue <ChevronRight size={14} />
-                        </button>
-                      )}
+                    <div className="mt-auto pt-4 md:pt-6 flex flex-col gap-4">
+                      <div className="flex gap-4 md:gap-6">
+                        {currentStep > 1 && (
+                          <button type="button" onClick={() => setCurrentStep(prev => prev - 1)} className="flex-1 border-2 border-[#ede5dc] text-[#9c8878] py-3 md:py-5 rounded-full font-bold uppercase text-[9px] md:text-[10px] tracking-widest flex items-center justify-center gap-2 hover:border-[#c8614a] hover:text-[#c8614a] transition-all">
+                            <ChevronLeft size={14} /> Back
+                          </button>
+                        )}
+                        {currentStep < 8 && (
+                          <button 
+                            type="button" 
+                            onClick={() => setCurrentStep(prev => prev + 1)} 
+                            disabled={
+                              (currentStep === 1 && !activeItem.selectedCakeType) ||
+                              (currentStep === 2 && !activeItem.selectedSize) ||
+                              (currentStep === 6 && (!formData.customerName || !formData.customerEmail || !formData.customerPhone)) ||
+                              (currentStep === 7 && (!formData.deliveryMethod || !formData.deliveryDate))
+                            }
+                            className="flex-[2] bg-[#c8614a] text-white py-3 md:py-5 rounded-full font-bold uppercase text-[9px] md:text-[10px] tracking-widest flex items-center justify-center gap-2 hover:bg-[#b04d38] transition-all shadow-lg disabled:opacity-50"
+                          >
+                            Continue <ChevronRight size={14} />
+                          </button>
+                        )}
+                        {currentStep === 8 && (
+                          <button type="button" onClick={() => {
+                            setFormData(prev => ({ ...prev, items: [...prev.items, INITIAL_CAKE_ITEM()] }));
+                            setActiveItemIndex(formData.items.length);
+                            setCurrentStep(1);
+                          }} className="flex-1 border-2 border-[#c8614a] text-[#c8614a] py-3 md:py-5 rounded-full font-bold uppercase tracking-widest text-[9px] md:text-[10px] flex items-center justify-center gap-2 hover:bg-[#c8614a] hover:text-white transition-all">
+                            <Sparkles size={14} /> Add Another
+                          </button>
+                        )}
+                      </div>
                     </div>
                   )}
                   {orderSuccess && (
                     <div className="flex flex-col items-center justify-center h-full py-24 text-center space-y-10 animate-fade-in">
                       <div className="w-32 h-32 bg-[#c8614a] rounded-full flex items-center justify-center shadow-2xl animate-bounce"><Check size={64} className="text-white draw-check" /></div>
                       <div className="space-y-6"><h3 className="text-6xl text-[#c8614a] font-serif italic">Bespoke Order Sent.</h3><p className="text-[#9c8878] max-w-sm mx-auto text-xl font-light">Expect a confirmation call within 24 hours.</p></div>
-                      <button onClick={() => { setOrderSuccess(false); setCurrentStep(1); setFormData(INITIAL_FORM_DATA); setMockupUrl(null); setOrderModalOpen(false); }} className="text-[#c8614a] font-black uppercase text-xs tracking-[0.3em] border-b-2 border-[#c8614a]/20 hover:border-[#c8614a] transition-all pb-2">Return to Lookbook</button>
+                      <button onClick={() => { setOrderSuccess(false); setCurrentStep(1); setFormData(INITIAL_FORM_DATA); setActiveItemIndex(0); setOrderModalOpen(false); }} className="text-[#c8614a] font-black uppercase text-xs tracking-[0.3em] border-b-2 border-[#c8614a]/20 hover:border-[#c8614a] transition-all pb-2">Return to Lookbook</button>
                     </div>
                   )}
                </form>
