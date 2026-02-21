@@ -166,14 +166,27 @@ const AuthModal: React.FC<{ onClose: () => void; onAuthSuccess: (user: User) => 
     e.preventDefault();
     setLoading(true);
     const fData = new FormData(e.currentTarget);
-    const code = fData.get('code') as string;
+    const code = (fData.get('code') as string || '').trim();
     try {
-      const { data, error: verifyError } = await supabase.auth.verifyOtp({
+      // Try magiclink first (for existing users)
+      let { data, error: verifyError } = await supabase.auth.verifyOtp({
         email: verificationEmail,
         token: code,
-        type: 'email' // Changed from 'magiclink' to 'email' for 6-digit codes
+        type: 'magiclink'
       });
-      if (verifyError) throw verifyError;
+
+      // If magiclink fails, try signup (for new users)
+      if (verifyError) {
+        const { data: signupData, error: signupError } = await supabase.auth.verifyOtp({
+          email: verificationEmail,
+          token: code,
+          type: 'signup'
+        });
+        
+        if (signupError) throw verifyError; // Throw original error if both fail
+        data = signupData;
+      }
+
       if (data.user) {
         onAuthSuccess({
           id: data.user.id,
@@ -192,7 +205,7 @@ const AuthModal: React.FC<{ onClose: () => void; onAuthSuccess: (user: User) => 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-[#2c1a0e]/60 backdrop-blur-md" onClick={onClose}></div>
-      <div className="relative bg-white w-full max-w-md p-6 md:p-10 rounded-[32px] md:rounded-[64px] shadow-2xl animate-scale-in border border-[#ede5dc]">
+      <div className="relative bg-white w-full max-w-md p-6 md:p-10 rounded-[32px] md:rounded-[64px] shadow-2xl animate-fade-in border border-[#ede5dc]">
         <button className="absolute top-6 right-6 md:top-8 md:right-8 text-[#c8614a] hover:scale-110 transition-transform" onClick={onClose}><X/></button>
         <div className="text-center space-y-2 mb-8 md:mb-10">
           <h2 className="text-3xl md:text-4xl font-serif italic text-[#2c1a0e]">
@@ -204,21 +217,21 @@ const AuthModal: React.FC<{ onClose: () => void; onAuthSuccess: (user: User) => 
         </div>
         {error && <div className="bg-red-50 text-red-500 p-4 rounded-xl mb-6 text-xs md:text-sm flex items-center gap-3"><AlertCircle size={18}/> {error}</div>}
         {mode === 'verify' ? (
-          <form onSubmit={handleVerify} className="space-y-4 md:space-y-6">
-            <input name="code" required placeholder="000000" className="w-full bg-[#fdf8f4] border border-[#ede5dc] rounded-xl md:rounded-2xl p-4 md:p-5 outline-none text-center text-2xl md:text-3xl font-bold tracking-[0.4em] text-[#c8614a]" />
+          <form key="verify-form" onSubmit={handleVerify} className="space-y-4 md:space-y-6">
+            <input name="code" required placeholder="••••••••" className="w-full bg-[#fdf8f4] border border-[#ede5dc] rounded-xl md:rounded-2xl p-4 md:p-5 outline-none text-center text-2xl md:text-3xl font-bold tracking-[0.2em] text-[#c8614a] text-base" autoFocus />
             <button disabled={loading} className="w-full bg-[#c8614a] text-white py-4 md:py-5 rounded-full font-bold uppercase tracking-widest text-[10px] md:text-xs shadow-xl flex justify-center items-center hover:bg-[#b04d38] transition-colors">
               {loading ? <Loader2 className="animate-spin"/> : 'Complete Verification'}
             </button>
           </form>
         ) : (
-          <form onSubmit={handleAuth} className="space-y-4 md:space-y-6">
-            {mode === 'signup' && <input name="name" required placeholder="Full Name" className="w-full bg-[#fdf8f4] border border-[#ede5dc] rounded-xl md:rounded-2xl p-4 md:p-5 outline-none text-xs md:text-sm" />}
-            <input name="email" type="email" required placeholder="Email Address" className="w-full bg-[#fdf8f4] border border-[#ede5dc] rounded-xl md:rounded-2xl p-4 md:p-5 outline-none text-xs md:text-sm" />
+          <form key="auth-form" onSubmit={handleAuth} className="space-y-4 md:space-y-6">
+            {mode === 'signup' && <input name="name" required placeholder="Full Name" className="w-full bg-[#fdf8f4] border border-[#ede5dc] rounded-xl md:rounded-2xl p-4 md:p-5 outline-none text-base" />}
+            <input name="email" type="email" required placeholder="Email Address" className="w-full bg-[#fdf8f4] border border-[#ede5dc] rounded-xl md:rounded-2xl p-4 md:p-5 outline-none text-base" />
             <button disabled={loading} className="w-full bg-[#c8614a] text-white py-4 md:py-5 rounded-full font-bold uppercase tracking-widest text-[10px] md:text-xs shadow-xl flex justify-center items-center hover:bg-[#b04d38] transition-colors">
               {loading ? <Loader2 className="animate-spin"/> : 'Continue'}
             </button>
             <div className="text-center">
-              <button type="button" onClick={() => setMode(mode === 'login' ? 'signup' : 'login')} className="text-[9px] md:text-[10px] uppercase tracking-widest font-black text-[#9c8878] hover:text-[#c8614a] transition-colors">
+              <button type="button" onClick={() => { setError(''); setMode(mode === 'login' ? 'signup' : 'login'); }} className="text-[9px] md:text-[10px] uppercase tracking-widest font-black text-[#9c8878] hover:text-[#c8614a] transition-colors">
                 {mode === 'login' ? "New here? Join the studio" : "Already a member? Sign in"}
               </button>
             </div>
@@ -744,7 +757,7 @@ const App: React.FC = () => {
       {orderModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-0 sm:p-4 md:p-8 animate-fade-in">
           <div className="absolute inset-0 bg-[#2c1a0e]/70 backdrop-blur-sm" onClick={() => setOrderModalOpen(false)}></div>
-          <div className="relative w-full max-w-4xl bg-white sm:rounded-[48px] shadow-2xl border border-[#ede5dc] flex flex-col h-full sm:max-h-[92vh] overflow-hidden animate-scale-in">
+          <div className="relative w-full max-w-4xl bg-white sm:rounded-[48px] shadow-2xl border border-[#ede5dc] flex flex-col h-full sm:max-h-[92vh] overflow-hidden animate-fade-in">
             <div className="absolute top-0 right-0 z-[110]"><button onClick={() => setOrderModalOpen(false)} className="w-12 h-12 md:w-16 md:h-16 close-notch flex items-center justify-center text-[#c8614a]" aria-label="Close modal"><X size={24} className="sm:translate-x-1 sm:-translate-y-1" /></button></div>
             <div className="absolute top-0 left-0 w-full h-1 md:h-1.5 bg-[#ede5dc] z-[30]"><div className="h-full bg-[#c8614a] transition-all duration-1000 ease-in-out" style={{ width: `${(currentStep / TOTAL_STEPS) * 100}%` }}></div></div>
             <div className="p-4 md:p-8 pb-2 md:pb-4 flex items-center justify-between shrink-0 bg-white z-20 mt-1 md:mt-1.5"><div className="space-y-0.5 md:space-y-1"><h2 className="text-xl md:text-3xl font-serif italic text-[#2c1a0e] leading-tight">{stepInfo.title}</h2><p className="text-[9px] md:text-xs text-[#9c8878] font-light max-w-md">{stepInfo.subtext}</p></div></div>
@@ -823,7 +836,7 @@ const App: React.FC = () => {
                             <select 
                               value={activeItem.cakeFlavor} 
                               onChange={(e) => updateActiveItem({ cakeFlavor: e.target.value })}
-                              className="w-full bg-[#fdf8f4] border border-[#ede5dc] rounded-xl md:rounded-2xl p-4 md:p-5 outline-none text-xs md:text-sm appearance-none cursor-pointer focus:border-[#c8614a] transition-colors"
+                              className="w-full bg-[#fdf8f4] border border-[#ede5dc] rounded-xl md:rounded-2xl p-4 md:p-5 outline-none text-base appearance-none cursor-pointer focus:border-[#c8614a] transition-colors"
                             >
                               <option value="">Select Flavor</option>
                               {config?.cake_flavours.map(f => <option key={f} value={f} className="bg-white text-[#2c1a0e]">{f}</option>)}
@@ -849,7 +862,7 @@ const App: React.FC = () => {
                             <select 
                               value={activeItem.filling} 
                               onChange={(e) => updateActiveItem({ filling: e.target.value })}
-                              className="w-full bg-[#fdf8f4] border border-[#ede5dc] rounded-xl md:rounded-2xl p-4 md:p-5 outline-none text-xs md:text-sm appearance-none cursor-pointer focus:border-[#c8614a] transition-colors"
+                              className="w-full bg-[#fdf8f4] border border-[#ede5dc] rounded-xl md:rounded-2xl p-4 md:p-5 outline-none text-base appearance-none cursor-pointer focus:border-[#c8614a] transition-colors"
                             >
                               <option value="">Select Filling</option>
                               {config?.fillings.map(f => <option key={f} value={f} className="bg-white text-[#2c1a0e]">{f}</option>)}
@@ -875,7 +888,7 @@ const App: React.FC = () => {
                             <select 
                               value={activeItem.frosting} 
                               onChange={(e) => updateActiveItem({ frosting: e.target.value })}
-                              className="w-full bg-[#fdf8f4] border border-[#ede5dc] rounded-xl md:rounded-2xl p-4 md:p-5 outline-none text-xs md:text-sm appearance-none cursor-pointer focus:border-[#c8614a] transition-colors"
+                              className="w-full bg-[#fdf8f4] border border-[#ede5dc] rounded-xl md:rounded-2xl p-4 md:p-5 outline-none text-base appearance-none cursor-pointer focus:border-[#c8614a] transition-colors"
                             >
                               <option value="">Select Frosting</option>
                               {config?.frosting_types.map(f => <option key={f} value={f} className="bg-white text-[#2c1a0e]">{f}</option>)}
@@ -895,7 +908,7 @@ const App: React.FC = () => {
                       <div className="space-y-6 md:space-y-8 max-w-lg mx-auto animate-fade-in-up">
                         <div className="space-y-2 md:space-y-3">
                           <label className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-[#9c8878]">Decorative Theme / Message</label>
-                          <textarea placeholder="e.g. 'Golden 30th', 'Pastel Florals'..." maxLength={100} value={activeItem.customMessage} onChange={e => updateActiveItem({ customMessage: e.target.value })} className="w-full bg-[#fdf8f4] border border-[#ede5dc] rounded-2xl md:rounded-[24px] p-4 md:p-6 outline-none focus:border-[#c8614a] min-h-[120px] md:min-h-[140px] text-sm leading-relaxed transition-colors" />
+                          <textarea placeholder="e.g. 'Golden 30th', 'Pastel Florals'..." maxLength={100} value={activeItem.customMessage} onChange={e => updateActiveItem({ customMessage: e.target.value })} className="w-full bg-[#fdf8f4] border border-[#ede5dc] rounded-2xl md:rounded-[24px] p-4 md:p-6 outline-none focus:border-[#c8614a] min-h-[120px] md:min-h-[140px] text-base leading-relaxed transition-colors" />
                         </div>
                         <div className="space-y-3 md:space-y-4">
                           <label className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-[#9c8878]">Dietary Requirements</label>
@@ -927,7 +940,7 @@ const App: React.FC = () => {
                           </div>
                         ) : (
                           <div className="space-y-4">
-                            <input placeholder="Paste Image URL..." value={activeItem.inspirationUrl} onChange={e => updateActiveItem({ inspirationUrl: e.target.value, inspirationImage: null })} className="w-full bg-[#fdf8f4] border-b-2 border-[#ede5dc] py-4 outline-none focus:border-[#c8614a] px-2 text-sm transition-colors" />
+                            <input placeholder="Paste Image URL..." value={activeItem.inspirationUrl} onChange={e => updateActiveItem({ inspirationUrl: e.target.value, inspirationImage: null })} className="w-full bg-[#fdf8f4] border-b-2 border-[#ede5dc] py-4 outline-none focus:border-[#c8614a] px-2 text-base transition-colors" />
                           </div>
                         )}
                       </div>
@@ -955,7 +968,7 @@ const App: React.FC = () => {
                         {formData.deliveryMethod === 'delivery' && (
                           <div className="space-y-3 md:space-y-4 animate-fade-in-up">
                             <label className="text-[9px] md:text-[10px] uppercase font-black text-[#c8614a] px-2 tracking-[0.2em]">Delivery Address</label>
-                            <textarea required placeholder="Full street address..." value={formData.deliveryAddress} onChange={e => setFormData(prev => ({ ...prev, deliveryAddress: e.target.value }))} className="w-full bg-[#fdf8f4] border border-[#ede5dc] rounded-xl md:rounded-[24px] p-4 md:p-5 outline-none focus:border-[#c8614a] text-sm h-24 md:h-32 transition-colors" />
+                            <textarea required placeholder="Full street address..." value={formData.deliveryAddress} onChange={e => setFormData(prev => ({ ...prev, deliveryAddress: e.target.value }))} className="w-full bg-[#fdf8f4] border border-[#ede5dc] rounded-xl md:rounded-[24px] p-4 md:p-5 outline-none focus:border-[#c8614a] text-base h-24 md:h-32 transition-colors" />
                           </div>
                         )}
 

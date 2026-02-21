@@ -109,3 +109,21 @@ h1, h2, h3, h4, .font-serif {
 .summary-item:hover {
   transform: translateY(-2px);
 }
+
+/* Mobile Fixes */
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  
+  input, textarea, select {
+    font-size: 16px !important; /* Force 16px to prevent iOS zoom */
+  }
+}
+
+/* Fix for cursor misalignment on transformed elements */
+.animate-fade-in {
+  backface-visibility: hidden;
+  transform: translateZ(0);
+}
