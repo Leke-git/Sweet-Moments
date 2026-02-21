@@ -526,17 +526,34 @@ const App: React.FC = () => {
 
       {isAdmin ? <AdminDashboard user={user!} /> : (
         <>
-          <div className={`fixed inset-0 bg-white/95 backdrop-blur-xl z-[60] flex flex-col items-center justify-center gap-10 transition-all duration-500 ease-in-out ${mobileMenuOpen ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-full pointer-events-none'}`}>
-            <button className="absolute top-8 right-8 text-[#c8614a] p-2 hover:bg-[#c8614a]/5 rounded-full transition-colors" onClick={() => setMobileMenuOpen(false)} aria-label="Close menu"><X size={32} /></button>
-            <div className="flex flex-col items-center gap-8">
-              <NavLink to="home" label="Home" />
-              <NavLink to="gallery" label="Gallery" />
-              <NavLink to="kitchen" label="The Kitchen" />
-              <NavLink to="reviews" label="Reviews" />
-              <NavLink to="about" label="About" />
-              <NavLink to="contact" label="Contact" />
+          <div className={`fixed inset-0 z-[60] transition-all duration-500 ${mobileMenuOpen ? 'visible' : 'invisible'}`}>
+            <div className={`absolute inset-0 bg-[#2c1a0e]/20 backdrop-blur-sm transition-opacity duration-500 ${mobileMenuOpen ? 'opacity-100' : 'opacity-0'}`} onClick={() => setMobileMenuOpen(false)}></div>
+            <div className={`absolute top-0 right-0 h-full w-[280px] sm:w-[320px] bg-white shadow-2xl transition-transform duration-500 ease-out flex flex-col p-8 ${mobileMenuOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+              <div className="flex justify-between items-center mb-12">
+                <span className="text-xl font-serif italic text-[#c8614a]">Menu</span>
+                <button className="text-[#c8614a] p-2 hover:bg-[#c8614a]/5 rounded-full transition-colors" onClick={() => setMobileMenuOpen(false)} aria-label="Close menu"><X size={24} /></button>
+              </div>
+              <div className="flex flex-col gap-6 mb-12">
+                <NavLink to="home" label="Home" />
+                <NavLink to="gallery" label="Gallery" />
+                <NavLink to="kitchen" label="The Kitchen" />
+                <NavLink to="reviews" label="Reviews" />
+                <NavLink to="about" label="About" />
+                <NavLink to="contact" label="Contact" />
+              </div>
+              
+              <div className="mt-auto space-y-6">
+                {user ? (
+                  <div className="flex flex-col gap-4 p-4 bg-[#fdf8f4] rounded-2xl border border-[#ede5dc]">
+                    <p className="text-[10px] text-[#c8614a] font-bold uppercase tracking-wider">Hi, {user.name.split(' ')[0]}</p>
+                    <button onClick={() => { logout(); setMobileMenuOpen(false); }} className="text-[10px] uppercase tracking-widest text-[#9c8878] hover:text-[#c8614a] flex items-center gap-2 transition-colors"><LogOut size={14}/> Sign Out</button>
+                  </div>
+                ) : (
+                  <button onClick={() => { setAuthModalOpen(true); setMobileMenuOpen(false); }} className="w-full text-center py-4 text-[10px] uppercase tracking-widest text-[#9c8878] hover:text-[#c8614a] border border-[#ede5dc] rounded-full transition-colors">Sign In</button>
+                )}
+                <button onClick={() => { setOrderModalOpen(true); setCurrentStep(1); setMobileMenuOpen(false); }} className="w-full bg-[#c8614a] text-white py-4 rounded-full text-[10px] font-bold uppercase tracking-widest shadow-lg hover:bg-[#b04d38] transition-all active:scale-95">Order Now</button>
+              </div>
             </div>
-            <button onClick={() => { setOrderModalOpen(true); setCurrentStep(1); setMobileMenuOpen(false); }} className="bg-[#c8614a] text-white px-12 py-5 rounded-full text-sm font-bold uppercase tracking-widest shadow-2xl hover:bg-[#b04d38] transition-all active:scale-95">Order Now</button>
           </div>
 
           <main className={`transition-all duration-700 ${orderModalOpen || authModalOpen ? 'blur-md scale-[0.98]' : 'blur-0 scale-100'}`}>
