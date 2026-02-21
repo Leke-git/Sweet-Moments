@@ -13,6 +13,7 @@ import {
 } from './constants';
 import { generateCakeVisualMockup, explainCakeTerm } from './services/geminiService';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 
 const MAX_FILE_SIZE = 2 * 1024 * 1024;
 
@@ -1075,6 +1076,7 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
+      <SpeedInsights />
     </div>
   );
 };
