@@ -4,5 +4,5 @@ export {
   Menu, X, ChevronRight, ChevronDown, Check, ShoppingCart, 
   Mail, Phone, MapPin, Clock, ArrowRight, Instagram, 
   Facebook, AlertCircle, Loader2, Sparkles, Image as ImageIcon,
-  ChevronLeft, Globe, Star, LogOut, TrendingUp, Inbox, Users
+  ChevronLeft, Globe, Star, LogOut, TrendingUp, Inbox, Users, Info
 } from 'lucide-react';

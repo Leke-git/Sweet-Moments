@@ -3,7 +3,7 @@ import {
   Menu, X, Check, ShoppingCart, Mail, Phone, MapPin, Clock, 
   ArrowRight, Loader2, Sparkles, ImageIcon,
   Instagram, Facebook, ChevronLeft, ChevronRight,
-  ChevronDown, Globe, Star, LogOut, TrendingUp, Inbox, Users, AlertCircle
+  ChevronDown, Globe, Star, LogOut, TrendingUp, Inbox, Users, AlertCircle, Info
 } from './components/Icons';
 import { 
   SiteConfig, OrderFormData, User 
@@ -11,7 +11,7 @@ import {
 import { 
   GALLERY_CATEGORIES, REVIEWS, DEFAULT_CONFIG, ADMIN_EMAILS
 } from './constants';
-import { generateCakeVisualMockup } from './services/geminiService';
+import { generateCakeVisualMockup, explainCakeTerm } from './services/geminiService';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 
 const MAX_FILE_SIZE = 2 * 1024 * 1024;
@@ -283,6 +283,8 @@ const App: React.FC = () => {
   const [fileError, setFileError] = useState<string | null>(null);
   const [inspirationMode, setInspirationMode] = useState<'upload' | 'url'>('upload');
   const [formData, setFormData] = useState<OrderFormData>(INITIAL_FORM_DATA);
+  const [explanation, setExplanation] = useState<{ term: string; text: string } | null>(null);
+  const [explaining, setExplaining] = useState(false);
 
   const sectionsRef = useRef<Record<string, HTMLElement | null>>({});
 
@@ -446,6 +448,19 @@ const App: React.FC = () => {
     if (isSupabaseConfigured) await supabase.auth.signOut();
     setUser(null);
     setIsAdmin(false);
+  };
+
+  const handleExplain = async (term: string, category: string) => {
+    if (!term) return;
+    setExplaining(true);
+    try {
+      const text = await explainCakeTerm(term, category);
+      setExplanation({ term, text: text || 'A premium artisan selection.' });
+    } catch (err) {
+      setExplanation({ term, text: 'A premium artisan selection.' });
+    } finally {
+      setExplaining(false);
+    }
   };
 
   const NavLink: React.FC<{ to: string; label: string }> = ({ to, label }) => (
@@ -747,38 +762,82 @@ const App: React.FC = () => {
                     {currentStep === 3 && (
                       <div className="max-w-md mx-auto space-y-6 md:space-y-8 animate-fade-in-up">
                         <div className="space-y-2 md:space-y-3">
-                          <label className="text-[9px] md:text-[10px] font-black uppercase tracking-[0.2em] md:tracking-[0.3em] text-[#c8614a]">01. The Sponge</label>
-                          <select 
-                            value={formData.cakeFlavor} 
-                            onChange={(e) => updateFormData({ cakeFlavor: e.target.value })}
-                            className="w-full bg-[#fdf8f4] border border-[#ede5dc] rounded-xl md:rounded-2xl p-4 md:p-5 outline-none text-xs md:text-sm appearance-none cursor-pointer focus:border-[#c8614a]"
-                          >
-                            <option value="">Select Flavor</option>
-                            {config?.cake_flavours.map(f => <option key={f} value={f}>{f}</option>)}
-                          </select>
+                          <div className="flex justify-between items-center">
+                            <label className="text-[9px] md:text-[10px] font-black uppercase tracking-[0.2em] md:tracking-[0.3em] text-[#c8614a]">01. The Sponge</label>
+                            {formData.cakeFlavor && (
+                              <button type="button" onClick={() => handleExplain(formData.cakeFlavor, 'sponge flavor')} className="text-[#9c8878] hover:text-[#c8614a] transition-colors flex items-center gap-1 text-[8px] uppercase font-bold">
+                                <Info size={10}/> What is this?
+                              </button>
+                            )}
+                          </div>
+                          <div className="relative">
+                            <select 
+                              value={formData.cakeFlavor} 
+                              onChange={(e) => updateFormData({ cakeFlavor: e.target.value })}
+                              className="w-full bg-[#fdf8f4] border border-[#ede5dc] rounded-xl md:rounded-2xl p-4 md:p-5 outline-none text-xs md:text-sm appearance-none cursor-pointer focus:border-[#c8614a] transition-colors"
+                            >
+                              <option value="">Select Flavor</option>
+                              {config?.cake_flavours.map(f => <option key={f} value={f} className="bg-white text-[#2c1a0e]">{f}</option>)}
+                            </select>
+                            <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#c8614a] pointer-events-none" />
+                          </div>
                         </div>
                         <div className="space-y-2 md:space-y-3">
-                          <label className="text-[9px] md:text-[10px] font-black uppercase tracking-[0.2em] md:tracking-[0.3em] text-[#c8614a]">02. Internal Filling</label>
-                          <select 
-                            value={formData.filling} 
-                            onChange={(e) => updateFormData({ filling: e.target.value })}
-                            className="w-full bg-[#fdf8f4] border border-[#ede5dc] rounded-xl md:rounded-2xl p-4 md:p-5 outline-none text-xs md:text-sm appearance-none cursor-pointer focus:border-[#c8614a]"
-                          >
-                            <option value="">Select Filling</option>
-                            {config?.fillings.map(f => <option key={f} value={f}>{f}</option>)}
-                          </select>
+                          <div className="flex justify-between items-center">
+                            <label className="text-[9px] md:text-[10px] font-black uppercase tracking-[0.2em] md:tracking-[0.3em] text-[#c8614a]">02. Internal Filling</label>
+                            {formData.filling && (
+                              <button type="button" onClick={() => handleExplain(formData.filling, 'cake filling')} className="text-[#9c8878] hover:text-[#c8614a] transition-colors flex items-center gap-1 text-[8px] uppercase font-bold">
+                                <Info size={10}/> What is this?
+                              </button>
+                            )}
+                          </div>
+                          <div className="relative">
+                            <select 
+                              value={formData.filling} 
+                              onChange={(e) => updateFormData({ filling: e.target.value })}
+                              className="w-full bg-[#fdf8f4] border border-[#ede5dc] rounded-xl md:rounded-2xl p-4 md:p-5 outline-none text-xs md:text-sm appearance-none cursor-pointer focus:border-[#c8614a] transition-colors"
+                            >
+                              <option value="">Select Filling</option>
+                              {config?.fillings.map(f => <option key={f} value={f} className="bg-white text-[#2c1a0e]">{f}</option>)}
+                            </select>
+                            <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#c8614a] pointer-events-none" />
+                          </div>
                         </div>
                         <div className="space-y-2 md:space-y-3">
-                          <label className="text-[9px] md:text-[10px] font-black uppercase tracking-[0.2em] md:tracking-[0.3em] text-[#c8614a]">03. Final Finish</label>
-                          <select 
-                            value={formData.frosting} 
-                            onChange={(e) => updateFormData({ frosting: e.target.value })}
-                            className="w-full bg-[#fdf8f4] border border-[#ede5dc] rounded-xl md:rounded-2xl p-4 md:p-5 outline-none text-xs md:text-sm appearance-none cursor-pointer focus:border-[#c8614a]"
-                          >
-                            <option value="">Select Frosting</option>
-                            {config?.frosting_types.map(f => <option key={f} value={f}>{f}</option>)}
-                          </select>
+                          <div className="flex justify-between items-center">
+                            <label className="text-[9px] md:text-[10px] font-black uppercase tracking-[0.2em] md:tracking-[0.3em] text-[#c8614a]">03. Final Finish</label>
+                            {formData.frosting && (
+                              <button type="button" onClick={() => handleExplain(formData.frosting, 'cake frosting')} className="text-[#9c8878] hover:text-[#c8614a] transition-colors flex items-center gap-1 text-[8px] uppercase font-bold">
+                                <Info size={10}/> What is this?
+                              </button>
+                            )}
+                          </div>
+                          <div className="relative">
+                            <select 
+                              value={formData.frosting} 
+                              onChange={(e) => updateFormData({ frosting: e.target.value })}
+                              className="w-full bg-[#fdf8f4] border border-[#ede5dc] rounded-xl md:rounded-2xl p-4 md:p-5 outline-none text-xs md:text-sm appearance-none cursor-pointer focus:border-[#c8614a] transition-colors"
+                            >
+                              <option value="">Select Frosting</option>
+                              {config?.frosting_types.map(f => <option key={f} value={f} className="bg-white text-[#2c1a0e]">{f}</option>)}
+                            </select>
+                            <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#c8614a] pointer-events-none" />
+                          </div>
                         </div>
+
+                        {explanation && (
+                          <div className="p-4 bg-[#c8614a]/5 border border-[#c8614a]/20 rounded-2xl animate-fade-in relative">
+                            <button onClick={() => setExplanation(null)} className="absolute top-2 right-2 text-[#c8614a] opacity-50 hover:opacity-100"><X size={12}/></button>
+                            <p className="text-[8px] uppercase font-black text-[#c8614a] mb-1">About {explanation.term}</p>
+                            <p className="text-[10px] md:text-xs text-[#9c8878] leading-relaxed italic font-serif">{explanation.text}</p>
+                          </div>
+                        )}
+                        {explaining && <div className="flex items-center justify-center gap-2 text-[#c8614a] animate-pulse"><Loader2 size={12} className="animate-spin"/><span className="text-[8px] uppercase font-bold">Consulting the baker...</span></div>}
+
+                        <p className="text-[9px] md:text-[10px] text-[#9c8878] text-center italic font-light pt-4">
+                          Unsure about these terms? Feel free to skip this step. <br/>
+                          Sarah will reach out to discuss your flavor profile in detail.
+                        </p>
                       </div>
                     )}
 
@@ -860,7 +919,7 @@ const App: React.FC = () => {
                     {currentStep === 8 && !orderSuccess && (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 items-start animate-fade-in-up">
                         <div className="bg-[#fdf8f4] p-4 md:p-8 rounded-[24px] md:rounded-[32px] border border-[#ede5dc] space-y-4 md:space-y-6">
-                           <h4 className="font-serif italic text-lg md:text-xl border-b border-[#ede5dc] pb-2 md:pb-3 text-[#2c1a0e]">Blueprint</h4>
+                           <h4 className="font-serif italic text-lg md:text-xl border-b border-[#ede5dc] pb-2 md:pb-3 text-[#2c1a0e]">Order Summary</h4>
                            <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-[10px] md:text-xs">
                               {summaryItems.map(item => (
                                 <div key={item.label} className="summary-item">
@@ -881,6 +940,7 @@ const App: React.FC = () => {
                                 : <div className="text-center space-y-2">
                                     <Sparkles className="text-[#c8614a] w-6 h-6 mx-auto" />
                                     <button type="button" onClick={handleVisualize} className="bg-[#c8614a] text-white px-6 py-2 rounded-full text-[9px] font-bold uppercase tracking-widest shadow-lg hover:bg-[#b04d38] transition-all">Visualise</button>
+                                    <p className="text-[7px] md:text-[8px] text-[#9c8878] uppercase font-black tracking-widest max-w-[140px] mx-auto">Click to generate an AI-powered preview of your bespoke cake</p>
                                   </div>}
                            </div>
                            <button type="submit" disabled={submittingOrder} className="w-full bg-[#c8614a] text-white py-4 rounded-full font-bold uppercase tracking-widest text-[10px] shadow-xl flex items-center justify-center gap-2 hover:bg-[#b04d38] transition-all disabled:opacity-50">

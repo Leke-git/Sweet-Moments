@@ -64,3 +64,22 @@ export const generateCakeVisualMockup = async (details: MockupDetails) => {
     return null;
   }
 };
+
+export const explainCakeTerm = async (term: string, category: string) => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  try {
+    const prompt = `You are a professional artisan baker. Briefly explain what "${term}" is in the context of a cake's "${category}". 
+    Keep the explanation under 30 words, elegant, and helpful for someone who isn't a baker. 
+    Focus on the sensory experience (taste/texture/look).`;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: prompt,
+    });
+
+    return response.text;
+  } catch (error) {
+    console.error("Gemini Explanation AI failed:", error);
+    return "A premium selection for your bespoke cake.";
+  }
+};
